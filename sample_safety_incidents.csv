@@ -1,0 +1,13 @@
+incident_date,incident_type,severity,aircraft_registration,flight_number,location,description,immediate_action,investigation_status,reporter_name
+2025-01-10,Bird Strike,Minor,AP-BHA,PK300,Karachi,Minor bird strike during landing approach,Aircraft inspected - no damage found,Closed,Capt. Ahmed
+2025-01-15,Hard Landing,Moderate,AP-BHC,PK305,Lahore,Hard landing due to wind shear,Structural inspection ordered,Under Investigation,Capt. Khan
+2025-01-18,Engine Issue,Major,AP-BHI,PK312,Islamabad,Engine vibration detected mid-flight,Emergency landing executed successfully,Open,Capt. Malik
+2025-01-22,Ground Incident,Minor,AP-BHJ,PK320,Karachi,Baggage cart collision with aircraft,Minor paint damage,Closed,Ground Staff
+2025-02-01,Weather Diversion,Minor,AP-BHB,PK330,Dubai,Diverted to alternate due to sandstorm,Standard diversion protocol followed,Closed,Capt. Hassan
+2025-02-05,Medical Emergency,Moderate,AP-BHH,PK340,London,Passenger medical emergency mid-flight,Emergency descent - paramedics met aircraft,Closed,Capt. Ali
+2025-02-08,Cabin Pressure,Major,AP-BHE,PK350,Manchester,Cabin pressure loss at FL350,Emergency descent performed,Under Investigation,Capt. Siddiqui
+2025-02-12,Hydraulic Failure,Critical,AP-BHK,PK360,Karachi,Primary hydraulic system failure,Backup system engaged - safe landing,Open,Capt. Iqbal
+2025-02-15,Bird Strike,Moderate,AP-BHL,PK370,Peshawar,Multiple bird strikes during takeoff,Takeoff aborted - aircraft inspected,Under Investigation,Capt. Raza
+2025-02-20,Ground Incident,Minor,AP-BHA,PK380,Karachi,Wing tip contact with ground equipment,Surface damage noted,Pending,Ground Staff
+2025-03-01,Engine Issue,Major,AP-BHN,PK390,Islamabad,Engine compressor stall during climb,Single engine landing performed,Open,Capt. Farooq
+2025-03-05,Hard Landing,Minor,AP-BHF,PK400,Dubai,Hard landing in gusty conditions,Aircraft inspected - no structural damage,Closed,Capt. Nadeem

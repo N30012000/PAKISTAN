@@ -1,0 +1,222 @@
+═══════════════════════════════════════════════════════════════
+  PIA OPERATIONS - INSTALLATION & DEPLOYMENT INSTRUCTIONS
+═══════════════════════════════════════════════════════════════
+
+📦 PACKAGE CONTENTS
+-------------------
+✓ streamlit_app.py         - Main application (72KB)
+✓ requirements.txt         - Python dependencies
+✓ README.md                - Full documentation
+✓ QUICKSTART.md           - 5-minute setup guide
+✓ DEPLOYMENT.md           - Detailed deployment guide
+✓ .env.example            - Environment configuration template
+✓ Dockerfile              - Container deployment
+✓ Procfile                - Heroku deployment
+✓ render.yaml             - Render.com deployment
+✓ .streamlit/config.toml  - Streamlit configuration
+✓ .gitignore              - Git exclusions
+✓ sample_*.csv            - Demo data (3 files)
+
+═══════════════════════════════════════════════════════════════
+  ⚡ QUICK START (5 MINUTES)
+═══════════════════════════════════════════════════════════════
+
+Option A: STREAMLIT CLOUD (Recommended - FREE & Easiest)
+---------------------------------------------------------
+1. Create free Supabase database:
+   → Go to supabase.com
+   → Sign up and create project
+   → Copy URL and API key
+
+2. Deploy to Streamlit Cloud:
+   → Upload files to GitHub
+   → Go to share.streamlit.io
+   → Connect repo, select streamlit_app.py
+   → Add secrets (Supabase URL & KEY)
+   → Deploy!
+
+3. Access your app at: https://yourapp.streamlit.app
+
+Option B: LOCAL TESTING (Fastest)
+----------------------------------
+1. Install Python 3.9+
+2. Run:
+   pip install streamlit pandas plotly
+   streamlit run streamlit_app.py
+3. Open: http://localhost:8501
+
+═══════════════════════════════════════════════════════════════
+  🗄️ DATABASE SETUP
+═══════════════════════════════════════════════════════════════
+
+OPTION 1: Supabase (Recommended - FREE)
+----------------------------------------
+• Sign up: supabase.com
+• Create new project
+• Get credentials from Settings → API
+• Add to .env or Streamlit secrets:
+  SUPABASE_URL=https://xxx.supabase.co
+  SUPABASE_KEY=eyJ...
+
+OPTION 2: SQLite (Auto-fallback)
+---------------------------------
+• No setup needed
+• Creates pia_operations.db locally
+• Perfect for testing/development
+
+OPTION 3: Custom PostgreSQL/MySQL
+----------------------------------
+• Set DATABASE_URL in environment
+• Format: postgresql://user:pass@host:port/db
+
+═══════════════════════════════════════════════════════════════
+  🔑 OPTIONAL FEATURES
+═══════════════════════════════════════════════════════════════
+
+Enable AI Analysis (OpenAI):
+---------------------------
+OPENAI_API_KEY=sk-your-key
+→ Get from: platform.openai.com
+
+Enable Live Flight Tracking (OpenSky):
+--------------------------------------
+OPENSKY_USERNAME=your-username
+OPENSKY_PASSWORD=your-password
+→ Free signup: opensky-network.org
+
+Enable Weather Data (OpenWeatherMap):
+-------------------------------------
+WEATHER_API_KEY=your-key
+→ Free tier: openweathermap.org/api
+
+Enable Authentication:
+----------------------
+ENABLE_AUTH=true
+ADMIN_PASSWORD_HASH=<sha256 hash>
+→ Default password: pia2025
+
+═══════════════════════════════════════════════════════════════
+  🚀 DEPLOYMENT OPTIONS
+═══════════════════════════════════════════════════════════════
+
+1. STREAMLIT CLOUD (FREE, Easiest)
+   → share.streamlit.io
+   → Connect GitHub
+   → Add secrets
+   → Deploy
+
+2. RENDER.COM (FREE)
+   → render.com
+   → New Web Service
+   → Connect repo
+   → Auto-deploys
+
+3. HEROKU (FREE tier available)
+   → heroku create pia-operations
+   → Set config vars
+   → git push heroku main
+
+4. DOCKER (Self-hosted)
+   → docker build -t pia-ops .
+   → docker run -p 8501:8501 pia-ops
+
+═══════════════════════════════════════════════════════════════
+  ✅ VERIFICATION CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+After deployment, verify:
+□ Dashboard loads with KPI cards
+□ Demo data appears
+□ Forms submit successfully
+□ CSV upload works
+□ Data management displays records
+□ NL query responds
+□ Reports generate
+
+═══════════════════════════════════════════════════════════════
+  📁 FILE STRUCTURE
+═══════════════════════════════════════════════════════════════
+
+pia-operations/
+├── streamlit_app.py          # Main application
+├── requirements.txt          # Dependencies
+├── README.md                 # Documentation
+├── QUICKSTART.md            # Quick setup
+├── DEPLOYMENT.md            # Deployment guide
+├── .env.example             # Config template
+├── .gitignore               # Git exclusions
+├── Dockerfile               # Docker config
+├── Procfile                 # Heroku config
+├── render.yaml              # Render config
+├── .streamlit/
+│   └── config.toml         # Streamlit settings
+└── sample_*.csv            # Demo data
+
+═══════════════════════════════════════════════════════════════
+  🔧 TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Problem: App won't start
+Solution: pip install -r requirements.txt --upgrade
+
+Problem: No demo data
+Solution: Refresh page, check Dashboard is selected
+
+Problem: Database connection fails
+Solution: Verify SUPABASE_URL and SUPABASE_KEY
+
+Problem: CSV upload fails
+Solution: Check column mapping, see sample CSVs
+
+Problem: Features missing
+Solution: Add required API keys to environment
+
+═══════════════════════════════════════════════════════════════
+  📚 DOCUMENTATION
+═══════════════════════════════════════════════════════════════
+
+QUICKSTART.md    - 5-minute setup guide
+README.md        - Complete documentation
+DEPLOYMENT.md    - Detailed deployment steps
+
+═══════════════════════════════════════════════════════════════
+  💰 COST BREAKDOWN (ALL FREE TIERS)
+═══════════════════════════════════════════════════════════════
+
+Hosting (Streamlit Cloud):  FREE
+Database (Supabase):        FREE (500MB)
+OpenAI API:                 $5 free credit
+OpenSky Network:            FREE
+Weather API:                FREE (1000/day)
+
+Total monthly cost:         $0 (with free tiers)
+
+═══════════════════════════════════════════════════════════════
+  🎯 RECOMMENDED SETUP
+═══════════════════════════════════════════════════════════════
+
+For immediate use:
+1. Streamlit Cloud + Supabase (both free)
+2. Add demo data via CSV upload
+3. Start using immediately
+
+For production:
+1. Enable authentication (ENABLE_AUTH=true)
+2. Configure API keys (OpenAI, Weather)
+3. Set up scheduled backups
+4. Monitor usage metrics
+
+═══════════════════════════════════════════════════════════════
+  📞 SUPPORT
+═══════════════════════════════════════════════════════════════
+
+Documentation:  See README.md
+Quick Help:     See QUICKSTART.md
+Deployment:     See DEPLOYMENT.md
+Issues:         GitHub Issues
+
+═══════════════════════════════════════════════════════════════
+
+Built for Pakistan International Airlines
+Version 1.0 | 2025
+

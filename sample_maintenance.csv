@@ -1,0 +1,16 @@
+aircraft_registration,maintenance_type,description,scheduled_date,completion_date,technician_name,hours_spent,cost,status,priority
+AP-BHA,A-Check,Routine A-Check maintenance,2025-01-15,2025-01-16,Tech-101,24.5,50000,Completed,Medium
+AP-BHB,Engine Overhaul,Complete engine overhaul required,2025-02-01,,Tech-205,120.0,500000,Scheduled,High
+AP-BHC,Landing Gear,Landing gear inspection and service,2025-01-20,2025-01-21,Tech-103,18.0,75000,Completed,Medium
+AP-BHD,Avionics,Avionics system upgrade,2025-02-10,,Tech-304,48.0,150000,Scheduled,High
+AP-BHE,B-Check,Scheduled B-Check maintenance,2025-01-25,2025-01-27,Tech-102,72.0,125000,Completed,Medium
+AP-BHF,Interior Refurb,Cabin interior refurbishment,2025-03-01,,Tech-401,200.0,800000,Scheduled,Low
+AP-BHG,C-Check,Major C-Check overhaul,2025-04-15,,Tech-205,500.0,2000000,Scheduled,Critical
+AP-BHH,A-Check,Routine A-Check maintenance,2025-02-05,,Tech-101,24.5,50000,Scheduled,Medium
+AP-BHI,Engine Issue,Unscheduled engine inspection,2025-01-18,2025-01-19,Tech-205,36.0,180000,Completed,High
+AP-BHJ,Landing Gear,Emergency landing gear repair,2025-01-22,2025-01-23,Tech-103,28.0,95000,Completed,Critical
+AP-BHA,D-Check,Heavy maintenance D-Check,2025-06-01,,Tech-999,1000.0,5000000,Scheduled,Critical
+AP-BHK,Avionics,Radio system replacement,2025-02-12,,Tech-304,16.0,65000,In Progress,Medium
+AP-BHL,A-Check,Routine A-Check maintenance,2025-02-15,,Tech-101,24.5,50000,Scheduled,Medium
+AP-BHM,Interior Refurb,Seat replacement and cleaning,2025-03-10,,Tech-401,80.0,350000,Scheduled,Low
+AP-BHN,Engine Overhaul,Left engine overhaul,2025-05-01,,Tech-205,120.0,500000,Scheduled,High

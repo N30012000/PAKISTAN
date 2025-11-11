@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: pia-operations
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: streamlit run streamlit_app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.9.0
+      - key: APP_MODE
+        value: production
+      - key: ENABLE_AUTH
+        value: false
+    # Add your secrets in Render dashboard:
+    # SUPABASE_URL, SUPABASE_KEY, OPENAI_API_KEY, etc.
