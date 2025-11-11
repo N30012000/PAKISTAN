@@ -1,6 +1,7 @@
 """
 PIA Operations - Production-Ready Airline Operational Reporting System
 A scalable, secure, and comprehensive operations management system for Pakistan International Airlines
+ENHANCED WITH COMPLETE AUTHENTICATION SYSTEM
 """
 
 import streamlit as st
@@ -15,6 +16,7 @@ import hashlib
 import logging
 from io import BytesIO
 import base64
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,17 +29,17 @@ logger = logging.getLogger(__name__)
 class Config:
     """Application configuration from environment variables"""
     # Database
-    SUPABASE_URL = os.getenv("SUPABASE_URL", st.secrets.get("SUPABASE_URL", ""))
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY", st.secrets.get("SUPABASE_KEY", ""))
+    SUPABASE_URL = os.getenv("SUPABASE_URL", st.secrets.get("SUPABASE_URL", "") if hasattr(st, 'secrets') else "")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", st.secrets.get("SUPABASE_KEY", "") if hasattr(st, 'secrets') else "")
     DATABASE_URL = os.getenv("DATABASE_URL", "")
     
     # AI API Keys
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", ""))
-    GROQ_API_KEY = os.getenv("GROQ_API_KEY", st.secrets.get("GROQ_API_KEY", ""))
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", ""))
-    OPENSKY_USERNAME = os.getenv("OPENSKY_USERNAME", st.secrets.get("OPENSKY_USERNAME", ""))
-    OPENSKY_PASSWORD = os.getenv("OPENSKY_PASSWORD", st.secrets.get("OPENSKY_PASSWORD", ""))
-    WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", st.secrets.get("WEATHER_API_KEY", ""))
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", st.secrets.get("GEMINI_API_KEY", "") if hasattr(st, 'secrets') else "")
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", st.secrets.get("GROQ_API_KEY", "") if hasattr(st, 'secrets') else "")
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, 'secrets') else "")
+    OPENSKY_USERNAME = os.getenv("OPENSKY_USERNAME", st.secrets.get("OPENSKY_USERNAME", "") if hasattr(st, 'secrets') else "")
+    OPENSKY_PASSWORD = os.getenv("OPENSKY_PASSWORD", st.secrets.get("OPENSKY_PASSWORD", "") if hasattr(st, 'secrets') else "")
+    WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", st.secrets.get("WEATHER_API_KEY", "") if hasattr(st, 'secrets') else "")
     
     # Auth
     ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
@@ -45,7 +47,7 @@ class Config:
     
     # App Settings
     APP_MODE = os.getenv("APP_MODE", "demo")  # demo, production
-    ENABLE_AUTH = os.getenv("ENABLE_AUTH", "false").lower() == "true"
+    ENABLE_AUTH = os.getenv("ENABLE_AUTH", "true").lower() == "true"  # Changed to true by default
     
     # PIA Brand Colors
     PRIMARY_COLOR = "#006C35"  # PIA Green
@@ -126,6 +128,34 @@ class DatabaseManager:
         """Create SQLite tables"""
         cursor = self.connection.cursor()
         
+        # Users table - CRITICAL for authentication
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                full_name TEXT,
+                role TEXT DEFAULT 'user',
+                last_login TIMESTAMP,
+                reset_token TEXT,
+                reset_token_expiry TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create default admin user if not exists
+        try:
+            admin_password = "admin123"  # Default password
+            password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
+            cursor.execute("""
+                INSERT OR IGNORE INTO users (username, email, password_hash, full_name, role)
+                VALUES (?, ?, ?, ?, ?)
+            """, ("admin", "admin@pia.com", password_hash, "Administrator", "admin"))
+        except Exception as e:
+            logger.error(f"Error creating default admin: {e}")
+        
         # Maintenance table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS maintenance (
@@ -187,7 +217,7 @@ class DatabaseManager:
         """)
         
         self.connection.commit()
-        logger.info("SQLite schema created")
+        logger.info("SQLite schema created with users table")
     
     def query(self, table: str, filters: Optional[Dict] = None, limit: int = 1000) -> pd.DataFrame:
         """Generic query method"""
@@ -442,32 +472,358 @@ class DemoDataGenerator:
         return pd.DataFrame(data)
 
 # ============================================================================
-# AUTHENTICATION
+# AUTHENTICATION - COMPLETELY REVAMPED
 # ============================================================================
 
 def check_password():
-    """Check if user is authenticated"""
-    if not config.ENABLE_AUTH:
-        return True
+    """Enhanced authentication with full Login/Signup/Reset functionality"""
     
+    # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
+    if 'current_user' not in st.session_state:
+        st.session_state.current_user = None
     
+    # If already authenticated, return True
     if st.session_state.authenticated:
         return True
     
-    with st.form("login_form"):
-        st.subheader("🔐 Admin Login")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
+    # Show professional auth page
+    st.markdown('<div style="text-align:center;font-size:5rem;margin-bottom:1rem;">✈️</div>', unsafe_allow_html=True)
+    st.markdown(f'''
+        <div style="text-align:center;color:{config.PRIMARY_COLOR};font-size:3rem;font-weight:700;margin-bottom:0.5rem;">
+            PIA Operations
+        </div>
+        <div style="text-align:center;color:#666;font-size:1.1rem;margin-bottom:2rem;">
+            Operational Reporting & Analytics System
+        </div>
+    ''', unsafe_allow_html=True)
+    
+    # Create tabs for different auth actions
+    tab1, tab2, tab3 = st.tabs(["🔐 Login", "📝 Sign Up", "🔑 Reset Password"])
+    
+    # ==================== LOGIN TAB ====================
+    with tab1:
+        st.markdown("### Welcome Back")
+        st.markdown("---")
         
-        if submitted:
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
-            if password_hash == config.ADMIN_PASSWORD_HASH or password == "pia2025":
+        with st.form("login_form", clear_on_submit=False):
+            username = st.text_input("👤 Username", placeholder="Enter your username", key="login_username")
+            password = st.text_input("🔒 Password", type="password", placeholder="Enter your password", key="login_password")
+            remember = st.checkbox("Remember me for 30 days")
+            
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                submit = st.form_submit_button("🚀 Login", use_container_width=True, type="primary")
+            with col2:
+                demo = st.form_submit_button("🎮 Demo Mode", use_container_width=True)
+            
+            if demo:
                 st.session_state.authenticated = True
+                st.session_state.current_user = {
+                    'username': 'demo',
+                    'email': 'demo@pia.com',
+                    'full_name': 'Demo User',
+                    'role': 'admin'
+                }
+                st.success("Entering demo mode...")
+                time.sleep(0.5)
                 st.rerun()
-            else:
-                st.error("Invalid password")
+            
+            if submit:
+                if not username or not password:
+                    st.error("⚠️ Please enter both username and password")
+                else:
+                    try:
+                        # Hash password
+                        password_hash = hashlib.sha256(password.encode()).hexdigest()
+                        
+                        # Query user with SQLite
+                        if db.db_type == "sqlite":
+                            cursor = db.connection.cursor()
+                            cursor.execute(
+                                "SELECT * FROM users WHERE username = ? AND password_hash = ?",
+                                (username, password_hash)
+                            )
+                            result = cursor.fetchone()
+                            
+                            if result:
+                                # Get column names
+                                columns = [description[0] for description in cursor.description]
+                                user = dict(zip(columns, result))
+                                
+                                # Update last login
+                                cursor.execute(
+                                    "UPDATE users SET last_login = ? WHERE id = ?",
+                                    (datetime.now().isoformat(), user['id'])
+                                )
+                                db.connection.commit()
+                                
+                                # Set session
+                                st.session_state.authenticated = True
+                                st.session_state.current_user = {
+                                    'id': user['id'],
+                                    'username': user['username'],
+                                    'email': user['email'],
+                                    'full_name': user['full_name'],
+                                    'role': user['role']
+                                }
+                                
+                                st.success(f"✅ Welcome back, {user['full_name']}!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid username or password")
+                        
+                        # Supabase
+                        elif db.db_type == "supabase":
+                            response = db.connection.table('users').select("*").eq('username', username).eq('password_hash', password_hash).execute()
+                            
+                            if response.data:
+                                user = response.data[0]
+                                db.connection.table('users').update({'last_login': datetime.now().isoformat()}).eq('id', user['id']).execute()
+                                
+                                st.session_state.authenticated = True
+                                st.session_state.current_user = {
+                                    'id': user['id'],
+                                    'username': user['username'],
+                                    'email': user['email'],
+                                    'full_name': user['full_name'],
+                                    'role': user['role']
+                                }
+                                st.success(f"✅ Welcome back, {user['full_name']}!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid username or password")
+                                
+                    except Exception as e:
+                        logger.error(f"Login error: {e}")
+                        st.error(f"⚠️ Login error: {str(e)}")
+        
+        st.divider()
+        st.info("💡 **Default credentials:** username: `admin` | password: `admin123`")
+        st.caption("Or create a new account in the Sign Up tab")
+    
+    # ==================== SIGN UP TAB ====================
+    with tab2:
+        st.markdown("### Create Your Account")
+        st.markdown("---")
+        
+        with st.form("signup_form", clear_on_submit=True):
+            full_name = st.text_input("👤 Full Name", placeholder="John Doe", key="signup_name")
+            email = st.text_input("📧 Email Address", placeholder="john.doe@pia.com", key="signup_email")
+            username = st.text_input("👤 Username", placeholder="johndoe (min 3 characters)", key="signup_username")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                password = st.text_input("🔒 Password", type="password", placeholder="Min 6 characters", key="signup_password")
+            with col2:
+                password_confirm = st.text_input("🔒 Confirm Password", type="password", key="signup_password_confirm")
+            
+            terms = st.checkbox("I agree to the Terms of Service and Privacy Policy")
+            
+            submit = st.form_submit_button("📝 Create Account", use_container_width=True, type="primary")
+            
+            if submit:
+                # Validation
+                errors = []
+                if not all([full_name, email, username, password, password_confirm]):
+                    errors.append("Please fill in all fields")
+                if password != password_confirm:
+                    errors.append("Passwords do not match")
+                if len(username) < 3:
+                    errors.append("Username must be at least 3 characters")
+                if len(password) < 6:
+                    errors.append("Password must be at least 6 characters")
+                if not terms:
+                    errors.append("Please accept the Terms of Service")
+                if '@' not in email:
+                    errors.append("Please enter a valid email address")
+                
+                if errors:
+                    for error in errors:
+                        st.error(f"❌ {error}")
+                else:
+                    try:
+                        password_hash = hashlib.sha256(password.encode()).hexdigest()
+                        
+                        # Insert user
+                        if db.db_type == "sqlite":
+                            cursor = db.connection.cursor()
+                            cursor.execute("""
+                                INSERT INTO users (username, email, password_hash, full_name, role, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            """, (username, email, password_hash, full_name, 'user', datetime.now().isoformat()))
+                            db.connection.commit()
+                            
+                            st.success("✅ Account created successfully!")
+                            st.info("👉 You can now login with your credentials in the Login tab")
+                            st.balloons()
+                        
+                        elif db.db_type == "supabase":
+                            db.connection.table('users').insert({
+                                'username': username,
+                                'email': email,
+                                'password_hash': password_hash,
+                                'full_name': full_name,
+                                'role': 'user',
+                                'created_at': datetime.now().isoformat()
+                            }).execute()
+                            
+                            st.success("✅ Account created successfully!")
+                            st.info("👉 You can now login with your credentials in the Login tab")
+                            st.balloons()
+                            
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        if "unique" in error_msg or "duplicate" in error_msg:
+                            if "username" in error_msg:
+                                st.error("❌ Username already exists. Please choose a different one.")
+                            elif "email" in error_msg:
+                                st.error("❌ Email already registered. Please use a different email or login.")
+                        else:
+                            st.error(f"❌ Registration error: {str(e)}")
+    
+    # ==================== RESET PASSWORD TAB ====================
+    with tab3:
+        st.markdown("### Reset Your Password")
+        st.markdown("---")
+        
+        reset_method = st.radio(
+            "Choose reset method:",
+            ["1️⃣ Generate Reset Token", "2️⃣ Reset with Token"],
+            horizontal=True
+        )
+        
+        if reset_method == "1️⃣ Generate Reset Token":
+            with st.form("request_token_form"):
+                email = st.text_input("📧 Email Address", placeholder="Enter your registered email")
+                submit = st.form_submit_button("📨 Generate Reset Token", use_container_width=True, type="primary")
+                
+                if submit:
+                    if not email:
+                        st.error("❌ Please enter your email address")
+                    else:
+                        try:
+                            # Check if email exists
+                            if db.db_type == "sqlite":
+                                cursor = db.connection.cursor()
+                                cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+                                result = cursor.fetchone()
+                                
+                                if result:
+                                    # Generate token
+                                    import secrets
+                                    token = secrets.token_urlsafe(32)
+                                    expiry = (datetime.now() + timedelta(hours=1)).isoformat()
+                                    
+                                    cursor.execute(
+                                        "UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE email = ?",
+                                        (token, expiry, email)
+                                    )
+                                    db.connection.commit()
+                                    
+                                    st.success("✅ Reset token generated successfully!")
+                                    st.code(token, language=None)
+                                    st.warning("⚠️ **Important:** Copy this token and use it in the 'Reset with Token' section. Token expires in 1 hour.")
+                                else:
+                                    st.error("❌ Email not found in our system")
+                            
+                            elif db.db_type == "supabase":
+                                response = db.connection.table('users').select("id").eq('email', email).execute()
+                                if response.data:
+                                    import secrets
+                                    token = secrets.token_urlsafe(32)
+                                    expiry = (datetime.now() + timedelta(hours=1)).isoformat()
+                                    
+                                    db.connection.table('users').update({
+                                        'reset_token': token,
+                                        'reset_token_expiry': expiry
+                                    }).eq('email', email).execute()
+                                    
+                                    st.success("✅ Reset token generated successfully!")
+                                    st.code(token, language=None)
+                                    st.warning("⚠️ **Important:** Copy this token and use it in the 'Reset with Token' section. Token expires in 1 hour.")
+                                else:
+                                    st.error("❌ Email not found in our system")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+        
+        else:  # Reset with Token
+            with st.form("reset_password_form"):
+                token = st.text_input("🔑 Reset Token", placeholder="Paste your reset token here")
+                new_password = st.text_input("🔒 New Password", type="password", placeholder="Min 6 characters")
+                confirm_password = st.text_input("🔒 Confirm New Password", type="password")
+                
+                submit = st.form_submit_button("🔄 Reset Password", use_container_width=True, type="primary")
+                
+                if submit:
+                    if not all([token, new_password, confirm_password]):
+                        st.error("❌ Please fill in all fields")
+                    elif new_password != confirm_password:
+                        st.error("❌ Passwords do not match")
+                    elif len(new_password) < 6:
+                        st.error("❌ Password must be at least 6 characters")
+                    else:
+                        try:
+                            if db.db_type == "sqlite":
+                                cursor = db.connection.cursor()
+                                cursor.execute(
+                                    "SELECT * FROM users WHERE reset_token = ?",
+                                    (token,)
+                                )
+                                result = cursor.fetchone()
+                                
+                                if result:
+                                    columns = [description[0] for description in cursor.description]
+                                    user = dict(zip(columns, result))
+                                    
+                                    # Check token expiry
+                                    expiry = datetime.fromisoformat(user['reset_token_expiry'])
+                                    if datetime.now() > expiry:
+                                        st.error("❌ Token has expired. Please generate a new one.")
+                                    else:
+                                        # Update password
+                                        password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+                                        cursor.execute("""
+                                            UPDATE users 
+                                            SET password_hash = ?, reset_token = NULL, reset_token_expiry = NULL
+                                            WHERE id = ?
+                                        """, (password_hash, user['id']))
+                                        db.connection.commit()
+                                        
+                                        st.success("✅ Password reset successfully!")
+                                        st.info("👉 You can now login with your new password")
+                                        st.balloons()
+                                else:
+                                    st.error("❌ Invalid token")
+                            
+                            elif db.db_type == "supabase":
+                                response = db.connection.table('users').select("*").eq('reset_token', token).execute()
+                                if response.data:
+                                    user = response.data[0]
+                                    expiry = datetime.fromisoformat(user['reset_token_expiry'])
+                                    
+                                    if datetime.now() > expiry:
+                                        st.error("❌ Token has expired. Please generate a new one.")
+                                    else:
+                                        password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+                                        db.connection.table('users').update({
+                                            'password_hash': password_hash,
+                                            'reset_token': None,
+                                            'reset_token_expiry': None
+                                        }).eq('id', user['id']).execute()
+                                        
+                                        st.success("✅ Password reset successfully!")
+                                        st.info("👉 You can now login with your new password")
+                                        st.balloons()
+                                else:
+                                    st.error("❌ Invalid token")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
     
     return False
 
@@ -1259,11 +1615,11 @@ def page_forms():
                 aircraft = st.text_input("Aircraft Registration*", placeholder="AP-BHA")
                 departure = st.text_input("Departure Airport*", placeholder="KHI")
                 arrival = st.text_input("Arrival Airport*", placeholder="LHE")
-                scheduled_dep = st.datetime_input("Scheduled Departure*", datetime.now())
+                scheduled_dep = st.text_input("Scheduled Departure*", value=datetime.now().strftime("%Y-%m-%d %H:%M"))
             
             with col2:
-                scheduled_arr = st.datetime_input("Scheduled Arrival*", 
-                    datetime.now() + timedelta(hours=2))
+                scheduled_arr = st.text_input("Scheduled Arrival*", 
+                    value=(datetime.now() + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M"))
                 passengers = st.number_input("Passengers", min_value=0, max_value=500, step=1)
                 cargo = st.number_input("Cargo Weight (kg)", min_value=0.0, step=100.0)
                 status = st.selectbox("Status", 
@@ -1283,9 +1639,9 @@ def page_forms():
                         'aircraft_registration': aircraft,
                         'departure_airport': departure,
                         'arrival_airport': arrival,
-                        'scheduled_departure': scheduled_dep.isoformat(),
+                        'scheduled_departure': scheduled_dep,
                         'actual_departure': None,
-                        'scheduled_arrival': scheduled_arr.isoformat(),
+                        'scheduled_arrival': scheduled_arr,
                         'actual_arrival': None,
                         'passengers_count': passengers,
                         'cargo_weight': cargo,
@@ -1720,6 +2076,22 @@ def main():
         
         st.divider()
         
+        # User info
+        if st.session_state.get('current_user'):
+            user = st.session_state.current_user
+            st.markdown(f"### 👤 {user['full_name']}")
+            st.caption(f"@{user['username']} | {user['role'].title()}")
+            
+            # LOGOUT BUTTON
+            if st.button("🚪 Logout", use_container_width=True, type="secondary"):
+                st.session_state.authenticated = False
+                st.session_state.current_user = None
+                st.success("Logged out successfully!")
+                time.sleep(1)
+                st.rerun()
+            
+            st.divider()
+        
         # System Info
         st.subheader("System Status")
         st.caption(f"Database: {db.db_type.upper()}")
@@ -1758,7 +2130,7 @@ def main():
     
     # Footer
     st.divider()
-    st.caption("© 2025 Pakistan International Airlines - Operations Management System v1.0")
+    st.caption("© 2025 Pakistan International Airlines - Operations Management System v1.0 | Enhanced Authentication")
 
 if __name__ == "__main__":
     main()
