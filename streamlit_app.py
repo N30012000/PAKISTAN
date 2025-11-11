@@ -1525,8 +1525,6 @@ def page_forms():
             
             with col2:
                 technician = st.text_input("Technician Name", placeholder="Tech-001")
-                hours = st.number_input("Hours Spent", min_value=0.0, step=0.5)
-                cost = st.number_input("Cost (PKR)", min_value=0.0, step=1000.0)
                 status = st.selectbox("Status", ["Scheduled", "In Progress", "Completed", "Delayed"])
             
             priority = st.selectbox("Priority", ["Low", "Medium", "High", "Critical"])
@@ -1545,8 +1543,6 @@ def page_forms():
                         'scheduled_date': scheduled_date.isoformat(),
                         'completion_date': completion_date.isoformat() if completion_date else None,
                         'technician_name': technician,
-                        'hours_spent': hours,
-                        'cost': cost,
                         'status': status,
                         'priority': priority
                     }
@@ -1644,7 +1640,6 @@ def page_forms():
                         'scheduled_arrival': scheduled_arr,
                         'actual_arrival': None,
                         'passengers_count': passengers,
-                        'cargo_weight': cargo,
                         'flight_status': status,
                         'delay_reason': delay_reason,
                         'captain_name': captain
@@ -1663,10 +1658,82 @@ def page_csv_upload():
     """Bulk CSV upload with flexible header mapping"""
     st.header("📤 CSV Bulk Upload")
     
+    # Template downloads section
+    st.markdown("### 📥 Download CSV Templates")
+    st.info("💡 **New to bulk upload?** Download a template file below, fill it with your data, and upload it back!")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    # Define template data
+    templates = {
+        'maintenance': {
+            'data': """aircraft_registration,maintenance_type,description,scheduled_date,completion_date,technician_name,hours_spent,cost,status,priority
+AP-BHA,A-Check,Routine A-Check inspection and servicing,2024-01-15,2024-01-16,Tech-101,Completed,Medium
+AP-BHB,Engine Overhaul,Complete engine overhaul - left engine,2024-02-20,,Tech-205,Scheduled,High
+AP-BHC,Landing Gear,Landing gear inspection and maintenance,2024-01-28,2024-01-29,Tech-150,Completed,High""",
+            'filename': 'maintenance_template.csv',
+            'icon': '✈️'
+        },
+        'safety_incidents': {
+            'data': """incident_date,incident_type,severity,aircraft_registration,flight_number,location,description,immediate_action,investigation_status,reporter_name
+2024-01-10,Bird Strike,Minor,AP-BHA,PK301,Karachi,Bird strike during takeoff - windshield damage,Flight continued safely - windshield inspected upon landing,Closed,Capt. Khan-201
+2024-01-15,Hard Landing,Moderate,AP-BHC,PK450,Lahore,Hard landing due to wind shear conditions,Aircraft inspected - no structural damage found,Closed,Capt. Ahmed-305
+2024-01-22,Engine Issue,Major,AP-BHE,PK205,Dubai,Engine vibration detected during cruise,Emergency landing protocol initiated - landed safely,Under Investigation,Capt. Hassan-410""",
+            'filename': 'safety_incidents_template.csv',
+            'icon': '⚠️'
+        },
+        'flights': {
+            'data': """flight_number,aircraft_registration,departure_airport,arrival_airport,scheduled_departure,scheduled_arrival,passengers_count,cargo_weight,flight_status,delay_reason,captain_name
+PK301,AP-BHA,KHI,LHE,2024-01-15 08:00,2024-01-15 09:30,245,Arrived,,Capt. Khan-201
+PK302,AP-BHB,LHE,KHI,2024-01-15 10:30,2024-01-15 12:00,198,Arrived,,Capt. Ahmed-305
+PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,Delayed,Technical,Capt. Hassan-410""",
+            'filename': 'flights_template.csv',
+            'icon': '🛫'
+        }
+    }
+    
+    with col1:
+        st.markdown(f"#### {templates['maintenance']['icon']} Maintenance")
+        st.download_button(
+            label="Download Template",
+            data=templates['maintenance']['data'],
+            file_name=templates['maintenance']['filename'],
+            mime='text/csv',
+            key='download_maintenance',
+            use_container_width=True
+        )
+    
+    with col2:
+        st.markdown(f"#### {templates['safety_incidents']['icon']} Safety Incidents")
+        st.download_button(
+            label="Download Template",
+            data=templates['safety_incidents']['data'],
+            file_name=templates['safety_incidents']['filename'],
+            mime='text/csv',
+            key='download_incidents',
+            use_container_width=True
+        )
+    
+    with col3:
+        st.markdown(f"#### {templates['flights']['icon']} Flights")
+        st.download_button(
+            label="Download Template",
+            data=templates['flights']['data'],
+            file_name=templates['flights']['filename'],
+            mime='text/csv',
+            key='download_flights',
+            use_container_width=True
+        )
+    
+    st.divider()
+    
+    # Upload section
+    st.markdown("### 📤 Upload Your CSV File")
+    
     table_choice = st.selectbox("Select Target Table", 
         ["maintenance", "safety_incidents", "flights"])
     
-    st.info("Upload a CSV file to bulk import records. The system will help you map columns.")
+    st.info("📋 Upload a CSV file to bulk import records. The system will help you map columns to database fields.")
     
     uploaded_file = st.file_uploader("Choose CSV file", type=['csv'])
     
