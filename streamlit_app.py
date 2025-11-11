@@ -1,6 +1,78 @@
 """
 PIA Operations - Production-Ready Airline Operational Reporting System
 A scalable, secure, and comprehensive operations management system for Pakistan International Airlines
+
+QUICK SETUP INSTRUCTIONS:
+=========================
+
+1. INSTALL DEPENDENCIES:
+   pip install streamlit pandas plotly supabase sqlalchemy requests openai reportlab openpyxl
+
+2. RUN THE APP:
+   streamlit run streamlit_app.py
+
+3. AUTHENTICATION (Optional):
+   By default, authentication is DISABLED. To enable:
+   - Set environment variable: ENABLE_AUTH=true
+   - Set ADMIN_PASSWORD_HASH (see instructions below)
+   - Default test password: "pia2025"
+
+4. ENABLE AI FEATURES (Optional):
+   - Get free OpenAI API key from: https://platform.openai.com
+   - Set environment variable: OPENAI_API_KEY=sk-your-key
+   - Or configure in Streamlit Cloud secrets
+
+5. ENABLE LIVE FLIGHT TRACKING (Optional):
+   - Sign up at: https://opensky-network.org
+   - Set: OPENSKY_USERNAME=your-username
+   - Set: OPENSKY_PASSWORD=your-password
+
+6. ENABLE WEATHER DATA (Optional):
+   - Get free API key from: https://openweathermap.org/api
+   - Set: WEATHER_API_KEY=your-key
+
+7. DATABASE OPTIONS:
+   - Auto-uses SQLite (no setup needed) - Creates pia_operations.db
+   - Or use Supabase (free): Set SUPABASE_URL and SUPABASE_KEY
+   - Or custom database: Set DATABASE_URL
+
+AUTHENTICATION SETUP:
+=====================
+To enable login page:
+
+1. Generate password hash:
+   In terminal: echo -n "yourpassword" | sha256sum
+   Or Python: import hashlib; print(hashlib.sha256("yourpassword".encode()).hexdigest())
+
+2. Set environment variables:
+   ENABLE_AUTH=true
+   ADMIN_PASSWORD_HASH=your-generated-hash
+
+3. Default test credentials (already configured):
+   Password: pia2025
+   Hash: 5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
+
+ENVIRONMENT VARIABLES:
+======================
+Create a .env file or set in Streamlit Cloud secrets:
+
+# Database (choose one)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your-key
+# DATABASE_URL=postgresql://user:pass@host:port/db
+
+# API Keys (all optional)
+OPENAI_API_KEY=sk-your-key
+OPENSKY_USERNAME=your-username
+OPENSKY_PASSWORD=your-password
+WEATHER_API_KEY=your-key
+
+# Authentication (optional)
+ENABLE_AUTH=true
+ADMIN_PASSWORD_HASH=5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8
+
+# Settings
+APP_MODE=production
 """
 
 import streamlit as st
@@ -31,14 +103,18 @@ class Config:
     SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
     DATABASE_URL = os.getenv("DATABASE_URL", "")
     
-    # API Keys
+    # AI API Keys - Multiple providers supported!
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")  # FREE - No credit card needed!
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")      # FREE - Super fast!
+    
+    # External API Keys
     OPENSKY_USERNAME = os.getenv("OPENSKY_USERNAME", "")
     OPENSKY_PASSWORD = os.getenv("OPENSKY_PASSWORD", "")
     WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", "")
     
     # Auth
-    ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
+    ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8")  # Default: pia2025
     API_TOKEN = os.getenv("API_TOKEN", "")
     
     # App Settings
@@ -448,24 +524,46 @@ def check_password():
     if not config.ENABLE_AUTH:
         return True
     
+    # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     
     if st.session_state.authenticated:
         return True
     
-    with st.form("login_form"):
-        st.subheader("🔐 Admin Login")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
+    # Show login page
+    st.markdown("""
+        <div class="main-header">
+            <h1>✈️ PIA Operations</h1>
+            <p>Secure Login Required</p>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("### 🔐 Admin Login")
+    st.info("**Default Password:** pia2025")
+    
+    with st.form("login_form", clear_on_submit=True):
+        password = st.text_input("Enter Password", type="password", key="password_input")
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            submitted = st.form_submit_button("Login", use_container_width=True)
         
-        if submitted:
+        if submitted and password:
+            # Hash the entered password
             password_hash = hashlib.sha256(password.encode()).hexdigest()
-            if password_hash == config.ADMIN_PASSWORD_HASH or password == "pia2025":
+            
+            # Check against configured hash
+            if password_hash == config.ADMIN_PASSWORD_HASH:
                 st.session_state.authenticated = True
+                st.success("✅ Login successful! Redirecting...")
                 st.rerun()
             else:
-                st.error("Invalid password")
+                st.error("❌ Invalid password. Try: pia2025")
+        elif submitted and not password:
+            st.warning("⚠️ Please enter a password")
+    
+    st.divider()
+    st.caption("💡 To disable authentication, set ENABLE_AUTH=false in environment variables")
     
     return False
 
@@ -628,11 +726,13 @@ class NLQueryEngine:
         return None
     
     def _ai_query(self, query: str) -> Optional[Dict[str, Any]]:
-        """AI-powered query using OpenAI"""
+        """AI-powered query using available AI provider (Gemini/Groq/OpenAI)"""
+        
+        # Check if any AI provider is available
+        if not (config.GEMINI_API_KEY or config.GROQ_API_KEY or config.OPENAI_API_KEY):
+            return None
+        
         try:
-            import openai
-            openai.api_key = config.OPENAI_API_KEY
-            
             # Get schema information
             schema_info = """
             Available tables:
@@ -651,13 +751,34 @@ Respond with JSON:
 {{"table": "table_name", "analysis": "description", "filters": {{}}, "aggregation": "sum/count/avg/none"}}
 """
             
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0
-            )
+            # Try AI providers with automatic fallback
+            response_text = None
             
-            result = json.loads(response.choices[0].message.content)
+            # Try Gemini first
+            if config.GEMINI_API_KEY:
+                response_text = AIAnalysisEngine._call_gemini_api(prompt, max_tokens=300)
+            
+            # Try Groq if Gemini failed
+            if not response_text and config.GROQ_API_KEY:
+                response_text = AIAnalysisEngine._call_groq_api(prompt, max_tokens=300)
+            
+            # Try OpenAI if both failed
+            if not response_text and config.OPENAI_API_KEY:
+                response_text = AIAnalysisEngine._call_openai_api(prompt, max_tokens=300)
+            
+            if not response_text:
+                return None
+            
+            # Clean up markdown code blocks if present
+            response_text = response_text.strip()
+            if response_text.startswith('```'):
+                response_text = response_text.split('\n', 1)[1]
+            if response_text.endswith('```'):
+                response_text = response_text.rsplit('\n', 1)[0]
+            response_text = response_text.strip()
+            
+            # Parse JSON response
+            result = json.loads(response_text)
             
             # Execute the query
             df = self.db.query(result['table'], result.get('filters'))
@@ -678,7 +799,128 @@ Respond with JSON:
 # ============================================================================
 
 class AIAnalysisEngine:
-    """AI-powered analysis and reporting"""
+    """AI-powered analysis and reporting with multiple provider support"""
+    
+    @staticmethod
+    def _call_gemini_api(prompt: str, max_tokens: int = 500) -> Optional[str]:
+        """Call Google Gemini API"""
+        try:
+            import requests
+            
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={config.GEMINI_API_KEY}"
+            
+            headers = {'Content-Type': 'application/json'}
+            data = {
+                "contents": [{
+                    "parts": [{
+                        "text": prompt
+                    }]
+                }],
+                "generationConfig": {
+                    "maxOutputTokens": max_tokens,
+                    "temperature": 0.7
+                }
+            }
+            
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result['candidates'][0]['content']['parts'][0]['text']
+            else:
+                logger.error(f"Gemini API error: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Gemini API error: {e}")
+            return None
+    
+    @staticmethod
+    def _call_groq_api(prompt: str, max_tokens: int = 500) -> Optional[str]:
+        """Call Groq API"""
+        try:
+            import requests
+            
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            
+            headers = {
+                'Authorization': f'Bearer {config.GROQ_API_KEY}',
+                'Content-Type': 'application/json'
+            }
+            
+            data = {
+                "model": "mixtral-8x7b-32768",  # Fast and capable model
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": max_tokens,
+                "temperature": 0.7
+            }
+            
+            response = requests.post(url, headers=headers, json=data, timeout=30)
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result['choices'][0]['message']['content']
+            else:
+                logger.error(f"Groq API error: {response.status_code} - {response.text}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Groq API error: {e}")
+            return None
+    
+    @staticmethod
+    def _call_openai_api(prompt: str, max_tokens: int = 500) -> Optional[str]:
+        """Call OpenAI API"""
+        try:
+            import openai
+            openai.api_key = config.OPENAI_API_KEY
+            
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=max_tokens
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            logger.error(f"OpenAI API error: {e}")
+            return None
+    
+    @staticmethod
+    def _get_ai_response(prompt: str, max_tokens: int = 500) -> Optional[str]:
+        """Get AI response with automatic fallback between providers"""
+        
+        # Try Gemini first (FREE, no credit card needed!)
+        if config.GEMINI_API_KEY:
+            logger.info("Trying Google Gemini API...")
+            response = AIAnalysisEngine._call_gemini_api(prompt, max_tokens)
+            if response:
+                logger.info("✅ Gemini API successful")
+                return response
+            logger.warning("⚠️ Gemini API failed, trying next provider...")
+        
+        # Try Groq second (FREE, super fast!)
+        if config.GROQ_API_KEY:
+            logger.info("Trying Groq API...")
+            response = AIAnalysisEngine._call_groq_api(prompt, max_tokens)
+            if response:
+                logger.info("✅ Groq API successful")
+                return response
+            logger.warning("⚠️ Groq API failed, trying next provider...")
+        
+        # Try OpenAI third (if available)
+        if config.OPENAI_API_KEY:
+            logger.info("Trying OpenAI API...")
+            response = AIAnalysisEngine._call_openai_api(prompt, max_tokens)
+            if response:
+                logger.info("✅ OpenAI API successful")
+                return response
+            logger.warning("⚠️ OpenAI API failed")
+        
+        # No API keys available or all failed
+        return None
     
     @staticmethod
     def analyze_data(df: pd.DataFrame, analysis_type: str, prompt: str = "") -> str:
@@ -719,21 +961,23 @@ class AIAnalysisEngine:
             analysis += "- Review temporal patterns\n"
             analysis += "- Identify common factors in incidents\n"
         
-        # If OpenAI key available, enhance with AI insights
-        if config.OPENAI_API_KEY and prompt:
+        # If AI available and prompt provided, enhance with AI insights
+        if prompt and (config.GEMINI_API_KEY or config.GROQ_API_KEY or config.OPENAI_API_KEY):
             try:
                 ai_insight = AIAnalysisEngine._get_ai_insights(df, prompt)
-                analysis += f"\n\n### AI-Enhanced Insights\n{ai_insight}"
+                if ai_insight:
+                    analysis += f"\n\n### AI-Enhanced Insights\n{ai_insight}"
+                else:
+                    analysis += f"\n\n### AI Analysis\n⚠️ AI providers unavailable. Using basic analysis only."
             except Exception as e:
                 logger.error(f"AI analysis error: {e}")
+                analysis += f"\n\n### AI Analysis\n⚠️ Error connecting to AI services."
         
         return analysis
     
     @staticmethod
-    def _get_ai_insights(df: pd.DataFrame, prompt: str) -> str:
-        """Get AI-powered insights using OpenAI"""
-        import openai
-        openai.api_key = config.OPENAI_API_KEY
+    def _get_ai_insights(df: pd.DataFrame, prompt: str) -> Optional[str]:
+        """Get AI-powered insights using available AI provider"""
         
         # Prepare data summary for AI
         data_summary = f"""
@@ -753,14 +997,10 @@ User question: {prompt}
 
 Provide actionable insights, patterns, and recommendations for PIA operations management."""
         
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": full_prompt}],
-            temperature=0.7,
-            max_tokens=500
-        )
+        # Try to get AI response with automatic fallback
+        response = AIAnalysisEngine._get_ai_response(full_prompt, max_tokens=500)
         
-        return response.choices[0].message.content
+        return response
 
 # ============================================================================
 # REPORT GENERATOR
@@ -1257,11 +1497,18 @@ def page_forms():
                 aircraft = st.text_input("Aircraft Registration*", placeholder="AP-BHA")
                 departure = st.text_input("Departure Airport*", placeholder="KHI")
                 arrival = st.text_input("Arrival Airport*", placeholder="LHE")
-                scheduled_dep = st.datetime_input("Scheduled Departure*", datetime.now())
+                
+                # Scheduled Departure
+                dep_date = st.date_input("Scheduled Departure Date*", datetime.now())
+                dep_time = st.time_input("Departure Time*", datetime.now().time())
+                scheduled_dep = datetime.combine(dep_date, dep_time)
             
             with col2:
-                scheduled_arr = st.datetime_input("Scheduled Arrival*", 
-                    datetime.now() + timedelta(hours=2))
+                # Scheduled Arrival
+                arr_date = st.date_input("Scheduled Arrival Date*", datetime.now())
+                arr_time = st.time_input("Arrival Time*", (datetime.now() + timedelta(hours=2)).time())
+                scheduled_arr = datetime.combine(arr_date, arr_time)
+                
                 passengers = st.number_input("Passengers", min_value=0, max_value=500, step=1)
                 cargo = st.number_input("Cargo Weight (kg)", min_value=0.0, step=100.0)
                 status = st.selectbox("Status", 
@@ -1723,10 +1970,32 @@ def main():
         st.caption(f"Database: {db.db_type.upper()}")
         st.caption(f"Mode: {config.APP_MODE.upper()}")
         
+        # AI Provider Status
+        ai_status = []
+        if config.GEMINI_API_KEY:
+            ai_status.append("✅ Gemini")
+        if config.GROQ_API_KEY:
+            ai_status.append("✅ Groq")
         if config.OPENAI_API_KEY:
-            st.success("✅ AI Enabled")
+            ai_status.append("✅ OpenAI")
+        
+        if ai_status:
+            st.success("🤖 AI: " + " | ".join(ai_status))
         else:
-            st.info("ℹ️ AI Disabled")
+            st.info("ℹ️ AI: Not configured")
+            with st.expander("💡 Enable AI"):
+                st.markdown("""
+                **FREE Options:**
+                - **Gemini**: Get key at [Google AI Studio](https://aistudio.google.com/app/apikey)
+                - **Groq**: Get key at [Groq Console](https://console.groq.com)
+                
+                Set environment variable:
+                ```bash
+                GEMINI_API_KEY=your-key
+                # or
+                GROQ_API_KEY=your-key
+                ```
+                """)
         
         st.divider()
         
