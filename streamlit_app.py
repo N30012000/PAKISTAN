@@ -1,7 +1,7 @@
 """
 PIA Operations - Production-Ready Airline Operational Reporting System
 A scalable, secure, and comprehensive operations management system for Pakistan International Airlines
-ENHANCED WITH COMPLETE AUTHENTICATION SYSTEM
+ENHANCED WITH COMPLETE AUTHENTICATION SYSTEM + GEMINI AI + GENERIC CHAT
 """
 
 import streamlit as st
@@ -46,8 +46,8 @@ class Config:
     API_TOKEN = os.getenv("API_TOKEN", "")
     
     # App Settings
-    APP_MODE = os.getenv("APP_MODE", "demo")  # demo, production
-    ENABLE_AUTH = os.getenv("ENABLE_AUTH", "true").lower() == "true"  # Changed to true by default
+    APP_MODE = os.getenv("APP_MODE", "production")  # Changed to production
+    ENABLE_AUTH = os.getenv("ENABLE_AUTH", "true").lower() == "true"
     
     # PIA Brand Colors
     PRIMARY_COLOR = "#006C35"  # PIA Green
@@ -58,7 +58,7 @@ class Config:
 config = Config()
 
 # ============================================================================
-# DATABASE LAYER
+# DATABASE LAYER (SAME AS BEFORE)
 # ============================================================================
 
 class DatabaseManager:
@@ -91,7 +91,6 @@ class DatabaseManager:
                 self._init_sql_database()
         except Exception as e:
             logger.error(f"Database initialization failed: {e}")
-            # Fallback to SQLite
             self.db_type = "sqlite"
             self._init_sqlite()
     
@@ -128,7 +127,7 @@ class DatabaseManager:
         """Create SQLite tables"""
         cursor = self.connection.cursor()
         
-        # Users table - CRITICAL for authentication
+        # Users table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -147,7 +146,7 @@ class DatabaseManager:
         
         # Create default admin user if not exists
         try:
-            admin_password = "admin123"  # Default password
+            admin_password = "admin123"
             password_hash = hashlib.sha256(admin_password.encode()).hexdigest()
             cursor.execute("""
                 INSERT OR IGNORE INTO users (username, email, password_hash, full_name, role)
@@ -348,6 +347,23 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Delete failed: {e}")
             return False
+    
+    def clear_table(self, table: str) -> bool:
+        """Clear all records from a table"""
+        try:
+            if self.db_type == "supabase":
+                # Supabase doesn't have a direct truncate, so delete all
+                self.connection.table(table).delete().neq('id', 0).execute()
+            elif self.db_type == "sqlite":
+                cursor = self.connection.cursor()
+                cursor.execute(f"DELETE FROM {table}")
+                self.connection.commit()
+            else:
+                self.connection.execute(f"DELETE FROM {table}")
+            return True
+        except Exception as e:
+            logger.error(f"Clear table failed: {e}")
+            return False
 
 # Initialize database
 @st.cache_resource
@@ -357,138 +373,122 @@ def get_database():
 db = get_database()
 
 # ============================================================================
-# DEMO DATA GENERATOR
+# GEMINI AI HELPER
 # ============================================================================
 
-class DemoDataGenerator:
-    """Generate realistic demo data for PIA operations"""
+class GeminiAI:
+    """Gemini AI integration for chat and analysis"""
     
     @staticmethod
-    def generate_maintenance_data(count: int = 50) -> pd.DataFrame:
-        """Generate demo maintenance records"""
-        import random
+    def chat(message: str, system_prompt: str = "") -> str:
+        """Send message to Gemini and get response"""
+        if not config.GEMINI_API_KEY:
+            return "❌ Gemini API key not configured. Please add GEMINI_API_KEY to your secrets."
         
-        aircraft = [f"AP-BH{chr(65+i)}" for i in range(10)]
-        maintenance_types = ["A-Check", "B-Check", "C-Check", "D-Check", "Engine Overhaul", 
-                            "Landing Gear", "Avionics", "Interior Refurb"]
-        statuses = ["Scheduled", "In Progress", "Completed", "Delayed"]
-        priorities = ["Low", "Medium", "High", "Critical"]
-        
-        data = []
-        base_date = datetime.now() - timedelta(days=180)
-        
-        for i in range(count):
-            scheduled = base_date + timedelta(days=random.randint(0, 180))
-            status = random.choice(statuses)
-            completion = scheduled + timedelta(days=random.randint(1, 7)) if status == "Completed" else None
+        try:
+            import google.generativeai as genai
             
-            data.append({
-                'aircraft_registration': random.choice(aircraft),
-                'maintenance_type': random.choice(maintenance_types),
-                'description': f"Scheduled {random.choice(maintenance_types)} maintenance",
-                'scheduled_date': scheduled.date(),
-                'completion_date': completion.date() if completion else None,
-                'technician_name': f"Tech-{random.randint(100, 999)}",
-                'hours_spent': round(random.uniform(2, 120), 1),
-                'cost': round(random.uniform(5000, 500000), 2),
-                'status': status,
-                'priority': random.choice(priorities)
-            })
-        
-        return pd.DataFrame(data)
+            genai.configure(api_key=config.GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-pro')
+            
+            # Combine system prompt with user message
+            full_prompt = f"{system_prompt}\n\nUser: {message}" if system_prompt else message
+            
+            response = model.generate_content(full_prompt)
+            return response.text
+            
+        except Exception as e:
+            logger.error(f"Gemini API error: {e}")
+            return f"❌ Error communicating with Gemini: {str(e)}"
     
     @staticmethod
-    def generate_safety_incidents(count: int = 30) -> pd.DataFrame:
-        """Generate demo safety incidents"""
-        import random
+    def analyze_data(df: pd.DataFrame, question: str) -> str:
+        """Use Gemini to analyze data and answer questions"""
+        if not config.GEMINI_API_KEY:
+            return "❌ Gemini API key not configured."
         
-        incident_types = ["Bird Strike", "Hard Landing", "Engine Issue", "Weather Diversion",
-                         "Cabin Pressure", "Hydraulic Failure", "Ground Incident", "Medical Emergency"]
-        severities = ["Minor", "Moderate", "Major", "Critical"]
-        statuses = ["Open", "Under Investigation", "Closed", "Pending"]
-        
-        data = []
-        base_date = datetime.now() - timedelta(days=365)
-        
-        for i in range(count):
-            incident_date = base_date + timedelta(days=random.randint(0, 365))
-            incident_type = random.choice(incident_types)
+        try:
+            # Prepare data summary
+            data_summary = f"""
+Dataset Information:
+- Shape: {df.shape[0]} rows, {df.shape[1]} columns
+- Columns: {', '.join(df.columns)}
+
+Sample Data (first 5 rows):
+{df.head().to_string()}
+
+Statistics:
+{df.describe().to_string()}
+"""
             
-            data.append({
-                'incident_date': incident_date.date(),
-                'incident_type': incident_type,
-                'severity': random.choice(severities),
-                'aircraft_registration': f"AP-BH{chr(65+random.randint(0, 9))}",
-                'flight_number': f"PK{random.randint(100, 999)}",
-                'location': random.choice(["Karachi", "Lahore", "Islamabad", "Dubai", "London"]),
-                'description': f"{incident_type} incident requiring attention",
-                'immediate_action': f"Crew followed protocol for {incident_type}",
-                'investigation_status': random.choice(statuses),
-                'reporter_name': f"Captain-{random.randint(100, 999)}"
-            })
-        
-        return pd.DataFrame(data)
-    
-    @staticmethod
-    def generate_flights(count: int = 100) -> pd.DataFrame:
-        """Generate demo flight records"""
-        import random
-        
-        airports = ["KHI", "LHE", "ISB", "DXB", "LHR", "JFK", "CDG", "FRA", "BKK", "KUL"]
-        statuses = ["Scheduled", "On Time", "Delayed", "Departed", "Arrived", "Cancelled"]
-        
-        data = []
-        base_date = datetime.now() - timedelta(days=30)
-        
-        for i in range(count):
-            departure_time = base_date + timedelta(days=random.randint(0, 60), 
-                                                   hours=random.randint(0, 23))
-            arrival_time = departure_time + timedelta(hours=random.randint(2, 14))
-            status = random.choice(statuses)
+            system_prompt = """You are an AI data analyst for Pakistan International Airlines. 
+Analyze the provided data and answer the user's question with specific insights, patterns, and recommendations.
+Be concise but thorough. Use bullet points for clarity."""
             
-            actual_departure = None
-            actual_arrival = None
-            if status in ["Departed", "Arrived"]:
-                actual_departure = departure_time + timedelta(minutes=random.randint(-15, 60))
-                if status == "Arrived":
-                    actual_arrival = arrival_time + timedelta(minutes=random.randint(-15, 60))
+            full_prompt = f"{system_prompt}\n\nData:\n{data_summary}\n\nQuestion: {question}"
             
-            data.append({
-                'flight_number': f"PK{random.randint(100, 999)}",
-                'aircraft_registration': f"AP-BH{chr(65+random.randint(0, 9))}",
-                'departure_airport': random.choice(airports),
-                'arrival_airport': random.choice([a for a in airports]),
-                'scheduled_departure': departure_time,
-                'actual_departure': actual_departure,
-                'scheduled_arrival': arrival_time,
-                'actual_arrival': actual_arrival,
-                'passengers_count': random.randint(50, 350),
-                'cargo_weight': round(random.uniform(1000, 15000), 1),
-                'flight_status': status,
-                'delay_reason': random.choice(["Weather", "Technical", "ATC", None, None]),
-                'captain_name': f"Capt. Khan-{random.randint(100, 999)}"
-            })
-        
-        return pd.DataFrame(data)
+            import google.generativeai as genai
+            genai.configure(api_key=config.GEMINI_API_KEY)
+            model = genai.GenerativeModel('gemini-pro')
+            
+            response = model.generate_content(full_prompt)
+            return response.text
+            
+        except Exception as e:
+            logger.error(f"Gemini analysis error: {e}")
+            return f"❌ Analysis error: {str(e)}"
 
 # ============================================================================
-# AUTHENTICATION - COMPLETELY REVAMPED
+# GROQ AI HELPER (ALTERNATIVE)
+# ============================================================================
+
+class GroqAI:
+    """Groq AI integration as alternative to Gemini"""
+    
+    @staticmethod
+    def chat(message: str, system_prompt: str = "") -> str:
+        """Send message to Groq and get response"""
+        if not config.GROQ_API_KEY:
+            return "❌ Groq API key not configured."
+        
+        try:
+            from groq import Groq
+            
+            client = Groq(api_key=config.GROQ_API_KEY)
+            
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": message})
+            
+            response = client.chat.completions.create(
+                model="mixtral-8x7b-32768",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=1024
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            logger.error(f"Groq API error: {e}")
+            return f"❌ Error communicating with Groq: {str(e)}"
+
+# ============================================================================
+# AUTHENTICATION (SAME AS BEFORE)
 # ============================================================================
 
 def check_password():
     """Enhanced authentication with full Login/Signup/Reset functionality"""
     
-    # Initialize session state
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     if 'current_user' not in st.session_state:
         st.session_state.current_user = None
     
-    # If already authenticated, return True
     if st.session_state.authenticated:
         return True
     
-    # Show professional auth page
     st.markdown('<div style="text-align:center;font-size:5rem;margin-bottom:1rem;">✈️</div>', unsafe_allow_html=True)
     st.markdown(f'''
         <div style="text-align:center;color:{config.PRIMARY_COLOR};font-size:3rem;font-weight:700;margin-bottom:0.5rem;">
@@ -499,10 +499,8 @@ def check_password():
         </div>
     ''', unsafe_allow_html=True)
     
-    # Create tabs for different auth actions
     tab1, tab2, tab3 = st.tabs(["🔐 Login", "📝 Sign Up", "🔑 Reset Password"])
     
-    # ==================== LOGIN TAB ====================
     with tab1:
         st.markdown("### Welcome Back")
         st.markdown("---")
@@ -535,10 +533,8 @@ def check_password():
                     st.error("⚠️ Please enter both username and password")
                 else:
                     try:
-                        # Hash password
                         password_hash = hashlib.sha256(password.encode()).hexdigest()
                         
-                        # Query user with SQLite
                         if db.db_type == "sqlite":
                             cursor = db.connection.cursor()
                             cursor.execute(
@@ -548,18 +544,15 @@ def check_password():
                             result = cursor.fetchone()
                             
                             if result:
-                                # Get column names
                                 columns = [description[0] for description in cursor.description]
                                 user = dict(zip(columns, result))
                                 
-                                # Update last login
                                 cursor.execute(
                                     "UPDATE users SET last_login = ? WHERE id = ?",
                                     (datetime.now().isoformat(), user['id'])
                                 )
                                 db.connection.commit()
                                 
-                                # Set session
                                 st.session_state.authenticated = True
                                 st.session_state.current_user = {
                                     'id': user['id'],
@@ -575,7 +568,6 @@ def check_password():
                             else:
                                 st.error("❌ Invalid username or password")
                         
-                        # Supabase
                         elif db.db_type == "supabase":
                             response = db.connection.table('users').select("*").eq('username', username).eq('password_hash', password_hash).execute()
                             
@@ -605,7 +597,6 @@ def check_password():
         st.info("💡 **Default credentials:** username: `admin` | password: `admin123`")
         st.caption("Or create a new account in the Sign Up tab")
     
-    # ==================== SIGN UP TAB ====================
     with tab2:
         st.markdown("### Create Your Account")
         st.markdown("---")
@@ -626,7 +617,6 @@ def check_password():
             submit = st.form_submit_button("📝 Create Account", use_container_width=True, type="primary")
             
             if submit:
-                # Validation
                 errors = []
                 if not all([full_name, email, username, password, password_confirm]):
                     errors.append("Please fill in all fields")
@@ -648,7 +638,6 @@ def check_password():
                     try:
                         password_hash = hashlib.sha256(password.encode()).hexdigest()
                         
-                        # Insert user
                         if db.db_type == "sqlite":
                             cursor = db.connection.cursor()
                             cursor.execute("""
@@ -685,7 +674,6 @@ def check_password():
                         else:
                             st.error(f"❌ Registration error: {str(e)}")
     
-    # ==================== RESET PASSWORD TAB ====================
     with tab3:
         st.markdown("### Reset Your Password")
         st.markdown("---")
@@ -706,14 +694,12 @@ def check_password():
                         st.error("❌ Please enter your email address")
                     else:
                         try:
-                            # Check if email exists
                             if db.db_type == "sqlite":
                                 cursor = db.connection.cursor()
                                 cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
                                 result = cursor.fetchone()
                                 
                                 if result:
-                                    # Generate token
                                     import secrets
                                     token = secrets.token_urlsafe(32)
                                     expiry = (datetime.now() + timedelta(hours=1)).isoformat()
@@ -751,7 +737,7 @@ def check_password():
                         except Exception as e:
                             st.error(f"❌ Error: {str(e)}")
         
-        else:  # Reset with Token
+        else:
             with st.form("reset_password_form"):
                 token = st.text_input("🔑 Reset Token", placeholder="Paste your reset token here")
                 new_password = st.text_input("🔒 New Password", type="password", placeholder="Min 6 characters")
@@ -780,12 +766,10 @@ def check_password():
                                     columns = [description[0] for description in cursor.description]
                                     user = dict(zip(columns, result))
                                     
-                                    # Check token expiry
                                     expiry = datetime.fromisoformat(user['reset_token_expiry'])
                                     if datetime.now() > expiry:
                                         st.error("❌ Token has expired. Please generate a new one.")
                                     else:
-                                        # Update password
                                         password_hash = hashlib.sha256(new_password.encode()).hexdigest()
                                         cursor.execute("""
                                             UPDATE users 
@@ -858,7 +842,6 @@ class ExternalDataService:
                         'on_ground', 'velocity', 'true_track', 'vertical_rate',
                         'sensors', 'geo_altitude', 'squawk', 'spi', 'position_source'
                     ])
-                    # Filter for PIA flights (callsigns starting with PIA)
                     df = df[df['callsign'].str.strip().str.startswith('PIA', na=False)]
                     return df
         except Exception as e:
@@ -892,11 +875,11 @@ class ExternalDataService:
         return None
 
 # ============================================================================
-# NL QUERY ENGINE
+# NL QUERY ENGINE - USING GEMINI
 # ============================================================================
 
 class NLQueryEngine:
-    """Natural language query processing with rule-based and AI fallback"""
+    """Natural language query processing with rule-based and Gemini AI fallback"""
     
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
@@ -917,9 +900,9 @@ class NLQueryEngine:
         if result:
             return result
         
-        # Try AI-powered query if OpenAI key available
-        if config.OPENAI_API_KEY:
-            result = self._ai_query(query)
+        # Try Gemini AI-powered query if key available
+        if config.GEMINI_API_KEY:
+            result = self._gemini_query(query)
             if result:
                 return result
         
@@ -932,7 +915,6 @@ class NLQueryEngine:
     def _rule_based_query(self, query: str) -> Optional[Dict[str, Any]]:
         """Rule-based query matching"""
         
-        # Total maintenance hours
         if any(pattern in query for pattern in self.rule_patterns['total_maintenance_hours']):
             df = self.db.query('maintenance')
             if not df.empty:
@@ -945,7 +927,6 @@ class NLQueryEngine:
                     'metric': total_hours
                 }
         
-        # Emergency/Critical incidents
         if any(pattern in query for pattern in self.rule_patterns['emergency_incidents']):
             df = self.db.query('safety_incidents')
             if not df.empty:
@@ -957,7 +938,6 @@ class NLQueryEngine:
                     'chart_type': 'table'
                 }
         
-        # Delayed flights
         if any(pattern in query for pattern in self.rule_patterns['delayed_flights']):
             df = self.db.query('flights')
             if not df.empty:
@@ -970,7 +950,6 @@ class NLQueryEngine:
                     'chart_type': 'table'
                 }
         
-        # Recent incidents
         if any(pattern in query for pattern in self.rule_patterns['recent_incidents']):
             df = self.db.query('safety_incidents')
             if not df.empty:
@@ -985,13 +964,9 @@ class NLQueryEngine:
         
         return None
     
-    def _ai_query(self, query: str) -> Optional[Dict[str, Any]]:
-        """AI-powered query using OpenAI"""
+    def _gemini_query(self, query: str) -> Optional[Dict[str, Any]]:
+        """Gemini AI-powered query"""
         try:
-            import openai
-            openai.api_key = config.OPENAI_API_KEY
-            
-            # Get schema information
             schema_info = """
             Available tables:
             1. maintenance: aircraft_registration, maintenance_type, scheduled_date, hours_spent, cost, status, priority
@@ -1002,41 +977,35 @@ class NLQueryEngine:
             prompt = f"""Given this database schema:
 {schema_info}
 
-Convert this natural language query to a safe, READ-ONLY analysis description:
-"{query}"
+Determine which table would answer this query: "{query}"
 
-Respond with JSON:
-{{"table": "table_name", "analysis": "description", "filters": {{}}, "aggregation": "sum/count/avg/none"}}
-"""
+Respond with ONLY the table name: maintenance, safety_incidents, or flights"""
             
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0
-            )
+            table = GeminiAI.chat(prompt).strip().lower()
             
-            result = json.loads(response.choices[0].message.content)
+            # Validate table name
+            if table not in ['maintenance', 'safety_incidents', 'flights']:
+                return None
             
-            # Execute the query
-            df = self.db.query(result['table'], result.get('filters'))
+            df = self.db.query(table)
             
             return {
                 'success': True,
-                'message': result['analysis'],
+                'message': f'Found {len(df)} records in {table}',
                 'data': df,
                 'chart_type': 'table'
             }
             
         except Exception as e:
-            logger.error(f"AI query error: {e}")
+            logger.error(f"Gemini query error: {e}")
             return None
 
 # ============================================================================
-# AI ANALYSIS ENGINE
+# AI ANALYSIS ENGINE - USING GEMINI
 # ============================================================================
 
 class AIAnalysisEngine:
-    """AI-powered analysis and reporting"""
+    """AI-powered analysis and reporting using Gemini"""
     
     @staticmethod
     def analyze_data(df: pd.DataFrame, analysis_type: str, prompt: str = "") -> str:
@@ -1044,7 +1013,6 @@ class AIAnalysisEngine:
         if df.empty:
             return "No data available for analysis."
         
-        # Basic statistical analysis (always available)
         analysis = f"## Data Analysis Results\n\n"
         analysis += f"**Total Records:** {len(df)}\n\n"
         
@@ -1077,48 +1045,15 @@ class AIAnalysisEngine:
             analysis += "- Review temporal patterns\n"
             analysis += "- Identify common factors in incidents\n"
         
-        # If OpenAI key available, enhance with AI insights
-        if config.OPENAI_API_KEY and prompt:
+        # If Gemini key available, enhance with AI insights
+        if config.GEMINI_API_KEY and prompt:
             try:
-                ai_insight = AIAnalysisEngine._get_ai_insights(df, prompt)
-                analysis += f"\n\n### AI-Enhanced Insights\n{ai_insight}"
+                ai_insight = GeminiAI.analyze_data(df, prompt)
+                analysis += f"\n\n### AI-Enhanced Insights (Gemini)\n{ai_insight}"
             except Exception as e:
                 logger.error(f"AI analysis error: {e}")
         
         return analysis
-    
-    @staticmethod
-    def _get_ai_insights(df: pd.DataFrame, prompt: str) -> str:
-        """Get AI-powered insights using OpenAI"""
-        import openai
-        openai.api_key = config.OPENAI_API_KEY
-        
-        # Prepare data summary for AI
-        data_summary = f"""
-        Dataset shape: {df.shape}
-        Columns: {', '.join(df.columns)}
-        Sample data:
-        {df.head(5).to_string()}
-        
-        Numeric summary:
-        {df.describe().to_string()}
-        """
-        
-        full_prompt = f"""Analyze this airline operations data:
-{data_summary}
-
-User question: {prompt}
-
-Provide actionable insights, patterns, and recommendations for PIA operations management."""
-        
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": full_prompt}],
-            temperature=0.7,
-            max_tokens=500
-        )
-        
-        return response.choices[0].message.content
 
 # ============================================================================
 # REPORT GENERATOR
@@ -1155,7 +1090,6 @@ class ReportGenerator:
             story = []
             styles = getSampleStyleSheet()
             
-            # Title
             title_style = ParagraphStyle(
                 'CustomTitle',
                 parent=styles['Heading1'],
@@ -1166,7 +1100,6 @@ class ReportGenerator:
             story.append(Paragraph(title, title_style))
             story.append(Spacer(1, 0.2*inch))
             
-            # Content
             for line in content.split('\n'):
                 if line.strip():
                     if line.startswith('##'):
@@ -1177,7 +1110,6 @@ class ReportGenerator:
                         story.append(Paragraph(line, styles['Normal']))
                     story.append(Spacer(1, 0.1*inch))
             
-            # Footer
             footer_text = f"Generated by PIA Operations System on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
             story.append(Spacer(1, 0.5*inch))
             story.append(Paragraph(footer_text, styles['Italic']))
@@ -1186,11 +1118,10 @@ class ReportGenerator:
             return output.getvalue()
             
         except ImportError:
-            # Fallback: create simple text-based PDF
             return content.encode('utf-8')
 
 # ============================================================================
-# PREDICTIVE ANALYTICS (Placeholder/Scaffold)
+# PREDICTIVE ANALYTICS
 # ============================================================================
 
 class PredictiveAnalytics:
@@ -1202,7 +1133,6 @@ class PredictiveAnalytics:
         if historical_data.empty:
             return {'error': 'Insufficient data'}
         
-        # Simple baseline: average delay by route and time
         try:
             delayed = historical_data[historical_data['flight_status'] == 'Delayed']
             delay_rate = len(delayed) / len(historical_data) * 100
@@ -1223,7 +1153,6 @@ class PredictiveAnalytics:
             return {'error': 'Insufficient historical data (need at least 10 records)'}
         
         try:
-            # Simple moving average forecast (baseline)
             daily_hours = maintenance_data.groupby('scheduled_date')['hours_spent'].sum()
             ma_7 = daily_hours.rolling(window=7).mean()
             forecast_value = ma_7.iloc[-1] if not ma_7.empty else daily_hours.mean()
@@ -1246,14 +1175,12 @@ def apply_custom_css():
     """Apply custom PIA branding and styling"""
     st.markdown(f"""
         <style>
-        /* PIA Brand Colors */
         :root {{
             --primary-color: {config.PRIMARY_COLOR};
             --secondary-color: {config.SECONDARY_COLOR};
             --accent-color: {config.ACCENT_COLOR};
         }}
         
-        /* Header Styling */
         .main-header {{
             background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, #004d26 100%);
             padding: 2rem;
@@ -1274,7 +1201,6 @@ def apply_custom_css():
             opacity: 0.9;
         }}
         
-        /* KPI Cards */
         .kpi-card {{
             background: white;
             padding: 1.5rem;
@@ -1298,7 +1224,6 @@ def apply_custom_css():
             letter-spacing: 0.5px;
         }}
         
-        /* Status Badges */
         .status-badge {{
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -1312,7 +1237,6 @@ def apply_custom_css():
         .status-danger {{ background: #f8d7da; color: #721c24; }}
         .status-info {{ background: #d1ecf1; color: #0c5460; }}
         
-        /* Forms */
         .stButton>button {{
             background-color: {config.PRIMARY_COLOR};
             color: white;
@@ -1328,7 +1252,6 @@ def apply_custom_css():
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }}
         
-        /* Responsive Design */
         @media (max-width: 768px) {{
             .main-header h1 {{
                 font-size: 1.75rem;
@@ -1338,12 +1261,10 @@ def apply_custom_css():
             }}
         }}
         
-        /* Data Tables */
         .dataframe {{
             font-size: 0.9rem;
         }}
         
-        /* Sidebar */
         .css-1d391kg {{
             background-color: #f8f9fa;
         }}
@@ -1381,11 +1302,11 @@ def create_download_link(data: bytes, filename: str, file_format: str) -> str:
     return f'<a href="data:{mime_types.get(file_format, "application/octet-stream")};base64,{b64}" download="{filename}">Download {file_format.upper()} Report</a>'
 
 # ============================================================================
-# PAGE: DASHBOARD
+# PAGE: DASHBOARD - DEMO DATA REMOVED
 # ============================================================================
 
 def page_dashboard():
-    """Main dashboard page with KPIs and charts"""
+    """Main dashboard page with KPIs and charts - NO AUTO DEMO DATA"""
     st.header("📊 Operations Dashboard")
     
     # Fetch data
@@ -1393,46 +1314,39 @@ def page_dashboard():
     incidents_df = db.query('safety_incidents', limit=1000)
     flights_df = db.query('flights', limit=1000)
     
-    # Load demo data if tables are empty
-    if maintenance_df.empty:
-        st.info("Loading demo data...")
-        demo_gen = DemoDataGenerator()
-        maintenance_df = demo_gen.generate_maintenance_data()
-        incidents_df = demo_gen.generate_safety_incidents()
-        flights_df = demo_gen.generate_flights()
-        
-        # Insert demo data
-        for _, row in maintenance_df.iterrows():
-            db.insert('maintenance', row.to_dict())
-        for _, row in incidents_df.iterrows():
-            db.insert('safety_incidents', row.to_dict())
-        for _, row in flights_df.iterrows():
-            db.insert('flights', row.to_dict())
+    # ========= DEMO DATA REMOVED =========
+    # Show message if no data instead of auto-generating
+    if maintenance_df.empty and incidents_df.empty and flights_df.empty:
+        st.info("📝 **No data found.** Please add data using:")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("- **📝 Forms & Submit** - Add individual records")
+        with col2:
+            st.markdown("- **📤 CSV Upload** - Bulk import data")
+        return
+    # =====================================
     
     # KPI Cards
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         total_maintenance = len(maintenance_df)
-        st.metric("Maintenance Tasks", total_maintenance, 
-                 delta=f"{len(maintenance_df[maintenance_df['status']=='Completed'])} completed")
+        completed = len(maintenance_df[maintenance_df['status']=='Completed']) if not maintenance_df.empty else 0
+        st.metric("Maintenance Tasks", total_maintenance, delta=f"{completed} completed")
     
     with col2:
         total_incidents = len(incidents_df)
-        critical = len(incidents_df[incidents_df['severity'].isin(['Major', 'Critical'])])
-        st.metric("Safety Incidents", total_incidents, 
-                 delta=f"{critical} critical", delta_color="inverse")
+        critical = len(incidents_df[incidents_df['severity'].isin(['Major', 'Critical'])]) if not incidents_df.empty else 0
+        st.metric("Safety Incidents", total_incidents, delta=f"{critical} critical", delta_color="inverse")
     
     with col3:
         total_flights = len(flights_df)
-        delayed = len(flights_df[flights_df['flight_status']=='Delayed'])
-        st.metric("Total Flights", total_flights, 
-                 delta=f"{delayed} delayed", delta_color="inverse")
+        delayed = len(flights_df[flights_df['flight_status']=='Delayed']) if not flights_df.empty else 0
+        st.metric("Total Flights", total_flights, delta=f"{delayed} delayed", delta_color="inverse")
     
     with col4:
         total_hours = maintenance_df['hours_spent'].sum() if not maintenance_df.empty else 0
-        st.metric("Maintenance Hours", f"{total_hours:,.0f}", 
-                 delta="This period")
+        st.metric("Maintenance Hours", f"{total_hours:,.0f}", delta="This period")
     
     st.divider()
     
@@ -1448,6 +1362,8 @@ def page_dashboard():
                         color_discrete_sequence=[config.PRIMARY_COLOR])
             fig.update_layout(showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No maintenance data available")
     
     with col2:
         st.subheader("Safety Incidents by Severity")
@@ -1456,6 +1372,8 @@ def page_dashboard():
             fig = px.pie(values=severity_counts.values, names=severity_counts.index,
                         color_discrete_sequence=[config.PRIMARY_COLOR, config.ACCENT_COLOR, '#FFA500', '#FFD700'])
             st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No incident data available")
     
     st.divider()
     
@@ -1470,6 +1388,8 @@ def page_dashboard():
                      color_discrete_sequence=[config.PRIMARY_COLOR])
         fig.update_layout(hovermode='x unified')
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("No flight data available")
     
     # External Data Integration
     with st.expander("🌐 Live External Data"):
@@ -1498,9 +1418,34 @@ def page_dashboard():
                         st.metric("Wind Speed", f"{weather['wind']['speed']} m/s")
                     else:
                         st.info("Weather API key not configured")
+    
+    # Admin Tools
+    if st.session_state.get('current_user', {}).get('role') == 'admin':
+        with st.expander("⚙️ Admin Tools"):
+            st.warning("**Danger Zone:** These actions cannot be undone!")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("🗑️ Clear Maintenance Data", type="secondary"):
+                    if db.clear_table('maintenance'):
+                        st.success("Maintenance data cleared!")
+                        st.rerun()
+            
+            with col2:
+                if st.button("🗑️ Clear Incidents Data", type="secondary"):
+                    if db.clear_table('safety_incidents'):
+                        st.success("Incidents data cleared!")
+                        st.rerun()
+            
+            with col3:
+                if st.button("🗑️ Clear Flights Data", type="secondary"):
+                    if db.clear_table('flights'):
+                        st.success("Flights data cleared!")
+                        st.rerun()
 
 # ============================================================================
-# PAGE: FORMS & SUBMIT
+# PAGE: FORMS & SUBMIT (SAME AS BEFORE - TOO LONG TO INCLUDE HERE)
 # ============================================================================
 
 def page_forms():
@@ -1509,7 +1454,6 @@ def page_forms():
     
     tab1, tab2, tab3 = st.tabs(["✈️ Maintenance", "⚠️ Safety Incident", "🛫 Flight Record"])
     
-    # Maintenance Form
     with tab1:
         st.subheader("Maintenance Record")
         with st.form("maintenance_form"):
@@ -1525,6 +1469,8 @@ def page_forms():
             
             with col2:
                 technician = st.text_input("Technician Name", placeholder="Tech-001")
+                hours = st.number_input("Hours Spent", min_value=0.0, step=0.5)
+                cost = st.number_input("Cost (PKR)", min_value=0.0, step=1000.0)
                 status = st.selectbox("Status", ["Scheduled", "In Progress", "Completed", "Delayed"])
             
             priority = st.selectbox("Priority", ["Low", "Medium", "High", "Critical"])
@@ -1543,16 +1489,18 @@ def page_forms():
                         'scheduled_date': scheduled_date.isoformat(),
                         'completion_date': completion_date.isoformat() if completion_date else None,
                         'technician_name': technician,
+                        'hours_spent': hours,
+                        'cost': cost,
                         'status': status,
                         'priority': priority
                     }
                     
                     if db.insert('maintenance', record):
                         st.success("✅ Maintenance record created successfully!")
+                        st.balloons()
                     else:
                         st.error("Failed to create record")
     
-    # Safety Incident Form
     with tab2:
         st.subheader("Safety Incident Report")
         with st.form("incident_form"):
@@ -1597,10 +1545,10 @@ def page_forms():
                     
                     if db.insert('safety_incidents', record):
                         st.success("✅ Incident report submitted successfully!")
+                        st.balloons()
                     else:
                         st.error("Failed to submit report")
     
-    # Flight Record Form
     with tab3:
         st.subheader("Flight Record")
         with st.form("flight_form"):
@@ -1640,6 +1588,7 @@ def page_forms():
                         'scheduled_arrival': scheduled_arr,
                         'actual_arrival': None,
                         'passengers_count': passengers,
+                        'cargo_weight': cargo,
                         'flight_status': status,
                         'delay_reason': delay_reason,
                         'captain_name': captain
@@ -1647,30 +1596,29 @@ def page_forms():
                     
                     if db.insert('flights', record):
                         st.success("✅ Flight record created successfully!")
+                        st.balloons()
                     else:
                         st.error("Failed to create record")
 
 # ============================================================================
-# PAGE: CSV UPLOAD
+# PAGE: CSV UPLOAD (SAME AS BEFORE BUT SHORTENED FOR SPACE)
 # ============================================================================
 
 def page_csv_upload():
     """Bulk CSV upload with flexible header mapping"""
     st.header("📤 CSV Bulk Upload")
     
-    # Template downloads section
     st.markdown("### 📥 Download CSV Templates")
     st.info("💡 **New to bulk upload?** Download a template file below, fill it with your data, and upload it back!")
     
     col1, col2, col3 = st.columns(3)
     
-    # Define template data
     templates = {
         'maintenance': {
             'data': """aircraft_registration,maintenance_type,description,scheduled_date,completion_date,technician_name,hours_spent,cost,status,priority
-AP-BHA,A-Check,Routine A-Check inspection and servicing,2024-01-15,2024-01-16,Tech-101,Completed,Medium
-AP-BHB,Engine Overhaul,Complete engine overhaul - left engine,2024-02-20,,Tech-205,Scheduled,High
-AP-BHC,Landing Gear,Landing gear inspection and maintenance,2024-01-28,2024-01-29,Tech-150,Completed,High""",
+AP-BHA,A-Check,Routine A-Check inspection and servicing,2024-01-15,2024-01-16,Tech-101,8.5,45000,Completed,Medium
+AP-BHB,Engine Overhaul,Complete engine overhaul - left engine,2024-02-20,,Tech-205,0,350000,Scheduled,High
+AP-BHC,Landing Gear,Landing gear inspection and maintenance,2024-01-28,2024-01-29,Tech-150,12.0,85000,Completed,High""",
             'filename': 'maintenance_template.csv',
             'icon': '✈️'
         },
@@ -1684,9 +1632,9 @@ AP-BHC,Landing Gear,Landing gear inspection and maintenance,2024-01-28,2024-01-2
         },
         'flights': {
             'data': """flight_number,aircraft_registration,departure_airport,arrival_airport,scheduled_departure,scheduled_arrival,passengers_count,cargo_weight,flight_status,delay_reason,captain_name
-PK301,AP-BHA,KHI,LHE,2024-01-15 08:00,2024-01-15 09:30,245,Arrived,,Capt. Khan-201
-PK302,AP-BHB,LHE,KHI,2024-01-15 10:30,2024-01-15 12:00,198,Arrived,,Capt. Ahmed-305
-PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,Delayed,Technical,Capt. Hassan-410""",
+PK301,AP-BHA,KHI,LHE,2024-01-15 08:00,2024-01-15 09:30,245,8500,Arrived,,Capt. Khan-201
+PK302,AP-BHB,LHE,KHI,2024-01-15 10:30,2024-01-15 12:00,198,7200,Arrived,,Capt. Ahmed-305
+PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,12000,Delayed,Technical,Capt. Hassan-410""",
             'filename': 'flights_template.csv',
             'icon': '🛫'
         }
@@ -1727,7 +1675,6 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,Delayed,Technical,Cap
     
     st.divider()
     
-    # Upload section
     st.markdown("### 📤 Upload Your CSV File")
     
     table_choice = st.selectbox("Select Target Table", 
@@ -1745,10 +1692,8 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,Delayed,Technical,Cap
             st.subheader("Preview Data")
             st.dataframe(df.head())
             
-            # Column mapping
             st.subheader("Map Columns")
             
-            # Expected columns based on table
             expected_columns = {
                 'maintenance': ['aircraft_registration', 'maintenance_type', 'scheduled_date', 
                                'technician_name', 'hours_spent', 'cost', 'status', 'priority'],
@@ -1785,6 +1730,7 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,Delayed,Technical,Cap
                     
                     if success_count > 0:
                         st.success(f"✅ Successfully imported {success_count} out of {len(records)} records!")
+                        st.balloons()
                     else:
                         st.error("Failed to import records")
         
@@ -1792,7 +1738,7 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,Delayed,Technical,Cap
             st.error(f"Error processing file: {e}")
 
 # ============================================================================
-# PAGE: DATA MANAGEMENT
+# PAGE: DATA MANAGEMENT (SAME AS BEFORE)
 # ============================================================================
 
 def page_data_management():
@@ -1801,7 +1747,6 @@ def page_data_management():
     
     table = st.selectbox("Select Table", ["maintenance", "safety_incidents", "flights"])
     
-    # Fetch data
     df = db.query(table, limit=1000)
     
     if df.empty:
@@ -1810,7 +1755,6 @@ def page_data_management():
     
     st.subheader(f"Total Records: {len(df)}")
     
-    # Filters
     with st.expander("🔍 Filters"):
         col1, col2 = st.columns(2)
         
@@ -1830,10 +1774,8 @@ def page_data_management():
                 if status_filter:
                     df = df[df['flight_status'].isin(status_filter)]
     
-    # Display data
     st.dataframe(df, use_container_width=True, height=400)
     
-    # Edit/Delete functionality
     st.subheader("Edit/Delete Record")
     
     if 'id' in df.columns:
@@ -1858,11 +1800,11 @@ def page_data_management():
                     st.error("Record not found")
 
 # ============================================================================
-# PAGE: NL/AI QUERY
+# PAGE: NL/AI QUERY - USING GEMINI
 # ============================================================================
 
 def page_nl_query():
-    """Natural language query interface"""
+    """Natural language query interface with Gemini AI"""
     st.header("💬 Natural Language Query")
     
     st.markdown("""
@@ -1873,10 +1815,8 @@ def page_nl_query():
     - "Recent incidents"
     """)
     
-    # Initialize query engine
     query_engine = NLQueryEngine(db)
     
-    # Query input
     query = st.text_input("Enter your question:", placeholder="Total maintenance hours")
     
     if st.button("Search", type="primary"):
@@ -1888,11 +1828,9 @@ def page_nl_query():
                     st.success(result['message'])
                     
                     if result['data'] is not None and not result['data'].empty:
-                        # Show metric if available
                         if 'metric' in result:
                             st.metric("Result", f"{result['metric']:,.1f}")
                         
-                        # Show data
                         st.subheader("Query Results")
                         
                         if result.get('chart_type') == 'table':
@@ -1902,7 +1840,6 @@ def page_nl_query():
                                        color='status', barmode='group')
                             st.plotly_chart(fig, use_container_width=True)
                         
-                        # Download option
                         csv = result['data'].to_csv(index=False)
                         st.download_button(
                             "Download Results",
@@ -1915,12 +1852,15 @@ def page_nl_query():
         else:
             st.error("Please enter a query")
     
-    # AI Chat Interface
     st.divider()
     st.subheader("🤖 AI Analysis Assistant")
     
-    if not config.OPENAI_API_KEY:
-        st.info("💡 Add OPENAI_API_KEY to environment for AI-powered analysis")
+    # Check if Gemini is configured
+    if not config.GEMINI_API_KEY:
+        st.warning("💡 **Gemini AI not configured.** Add GEMINI_API_KEY to your secrets to enable AI analysis.")
+        return
+    
+    st.success("✅ Gemini AI is enabled and ready!")
     
     analysis_prompt = st.text_area("Ask for analysis or insights:", 
         placeholder="Analyze maintenance trends and suggest optimizations...")
@@ -1933,29 +1873,131 @@ def page_nl_query():
     
     if st.button("Analyze", type="primary"):
         if analysis_prompt:
-            with st.spinner("Analyzing data..."):
+            with st.spinner("Analyzing data with Gemini AI..."):
                 df = db.query(table_for_analysis, limit=1000)
-                analysis = AIAnalysisEngine.analyze_data(df, analysis_type, analysis_prompt)
-                st.markdown(analysis)
                 
-                # Generate report
-                st.subheader("Download Analysis Report")
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    pdf_data = ReportGenerator.generate_pdf_report(analysis, "AI Analysis Report")
-                    st.download_button("Download PDF", pdf_data, 
-                                     f"analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
-                                     "application/pdf")
-                
-                with col2:
-                    csv_data = df.to_csv(index=False).encode('utf-8')
-                    st.download_button("Download CSV", csv_data,
-                                     f"data_{datetime.now().strftime('%Y%m%d')}.csv",
-                                     "text/csv")
+                if df.empty:
+                    st.warning("No data available for analysis")
+                else:
+                    analysis = AIAnalysisEngine.analyze_data(df, analysis_type, analysis_prompt)
+                    st.markdown(analysis)
+                    
+                    st.subheader("Download Analysis Report")
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        pdf_data = ReportGenerator.generate_pdf_report(analysis, "AI Analysis Report")
+                        st.download_button("Download PDF", pdf_data, 
+                                         f"analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
+                                         "application/pdf")
+                    
+                    with col2:
+                        csv_data = df.to_csv(index=False).encode('utf-8')
+                        st.download_button("Download CSV", csv_data,
+                                         f"data_{datetime.now().strftime('%Y%m%d')}.csv",
+                                         "text/csv")
 
 # ============================================================================
-# PAGE: REPORTS
+# PAGE: GENERIC AI CHAT - NEW!
+# ============================================================================
+
+def page_ai_chat():
+    """Generic AI chat assistant using Gemini"""
+    st.header("🤖 AI Assistant")
+    
+    st.markdown("""
+    Chat with an AI assistant about anything! This is a general-purpose chat,
+    separate from data analysis. Ask questions, get advice, or just have a conversation.
+    """)
+    
+    # Check if Gemini is configured
+    if not config.GEMINI_API_KEY and not config.GROQ_API_KEY:
+        st.error("❌ **AI not configured.** Please add either GEMINI_API_KEY or GROQ_API_KEY to your secrets.")
+        st.info("""
+        **How to add API keys:**
+        1. Go to Settings → Secrets
+        2. Add your Gemini API key: `GEMINI_API_KEY = "your-key-here"`
+        3. Or add Groq API key: `GROQ_API_KEY = "your-key-here"`
+        4. Restart the app
+        """)
+        return
+    
+    # Choose AI provider
+    if config.GEMINI_API_KEY and config.GROQ_API_KEY:
+        ai_provider = st.selectbox("AI Provider", ["Gemini (Google)", "Groq (Fast)"])
+    elif config.GEMINI_API_KEY:
+        ai_provider = "Gemini (Google)"
+        st.success("✅ Using Gemini AI")
+    else:
+        ai_provider = "Groq (Fast)"
+        st.success("✅ Using Groq AI")
+    
+    # Initialize chat history
+    if 'chat_history' not in st.session_state:
+        st.session_state.chat_history = []
+    
+    # Clear chat button
+    col1, col2 = st.columns([4, 1])
+    with col2:
+        if st.button("🗑️ Clear Chat"):
+            st.session_state.chat_history = []
+            st.rerun()
+    
+    # Display chat history
+    for message in st.session_state.chat_history:
+        if message['role'] == 'user':
+            st.markdown(f"**You:** {message['content']}")
+        else:
+            st.markdown(f"**AI:** {message['content']}")
+        st.divider()
+    
+    # Chat input
+    user_message = st.text_area("Your message:", placeholder="Ask me anything...", height=100, key="chat_input")
+    
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        send_button = st.button("📤 Send", type="primary", use_container_width=True)
+    
+    if send_button and user_message:
+        # Add user message to history
+        st.session_state.chat_history.append({'role': 'user', 'content': user_message})
+        
+        with st.spinner("AI is thinking..."):
+            # Get AI response
+            system_prompt = """You are a helpful AI assistant. Be friendly, informative, and concise.
+Help the user with any questions they have, whether about airline operations, technology, or general topics."""
+            
+            if "Gemini" in ai_provider:
+                ai_response = GeminiAI.chat(user_message, system_prompt)
+            else:
+                ai_response = GroqAI.chat(user_message, system_prompt)
+            
+            # Add AI response to history
+            st.session_state.chat_history.append({'role': 'assistant', 'content': ai_response})
+        
+        st.rerun()
+    
+    # Example questions
+    with st.expander("💡 Example Questions"):
+        st.markdown("""
+        **General:**
+        - What are best practices for airline maintenance?
+        - Explain the difference between A-Check and C-Check
+        - How to improve on-time performance?
+        
+        **Technical:**
+        - What is predictive maintenance?
+        - Explain aircraft turnaround time optimization
+        - Best practices for safety reporting
+        
+        **Casual:**
+        - What's the weather like today?
+        - Tell me a joke
+        - Give me productivity tips
+        """)
+
+# ============================================================================
+# PAGE: REPORTS (SHORTENED FOR SPACE - SAME AS BEFORE)
 # ============================================================================
 
 def page_reports():
@@ -1964,7 +2006,6 @@ def page_reports():
     
     tab1, tab2, tab3 = st.tabs(["📅 Scheduled Reports", "🔮 Predictive Analytics", "📈 Custom Report"])
     
-    # Scheduled Reports
     with tab1:
         st.subheader("Generate Reports")
         
@@ -1985,7 +2026,6 @@ def page_reports():
         
         if st.button("Generate Report", type="primary"):
             with st.spinner("Generating report..."):
-                # Fetch data based on report type
                 if report_type == "Maintenance Summary":
                     df = db.query('maintenance', limit=1000)
                 elif report_type == "Safety Report":
@@ -1993,7 +2033,6 @@ def page_reports():
                 elif report_type == "Flight Operations":
                     df = db.query('flights', limit=1000)
                 else:
-                    # Comprehensive - combine all
                     maint = db.query('maintenance', limit=500)
                     incidents = db.query('safety_incidents', limit=500)
                     flights = db.query('flights', limit=500)
@@ -2028,7 +2067,6 @@ def page_reports():
                     st.success("Report generated successfully!")
                     return
                 
-                # For single-table reports
                 if not df.empty:
                     if format_choice == "CSV":
                         csv_data = ReportGenerator.generate_csv_report(df, f"{report_type}.csv")
@@ -2046,7 +2084,6 @@ def page_reports():
                 else:
                     st.warning("No data available for selected criteria")
     
-    # Predictive Analytics
     with tab2:
         st.subheader("Predictive Models")
         
@@ -2058,15 +2095,18 @@ def page_reports():
             st.markdown("### Flight Delay Prediction")
             if st.button("Predict Delays"):
                 flights_df = db.query('flights', limit=1000)
-                predictions = PredictiveAnalytics.predict_delays(flights_df)
-                
-                if 'error' not in predictions:
-                    st.metric("Overall Delay Rate", predictions['overall_delay_rate'])
-                    st.json(predictions['high_risk_routes'])
-                    st.info(predictions['recommendation'])
-                    st.caption(f"Model: {predictions['model']}")
+                if flights_df.empty:
+                    st.warning("No flight data available")
                 else:
-                    st.error(predictions['error'])
+                    predictions = PredictiveAnalytics.predict_delays(flights_df)
+                    
+                    if 'error' not in predictions:
+                        st.metric("Overall Delay Rate", predictions['overall_delay_rate'])
+                        st.json(predictions['high_risk_routes'])
+                        st.info(predictions['recommendation'])
+                        st.caption(f"Model: {predictions['model']}")
+                    else:
+                        st.error(predictions['error'])
         
         with col2:
             st.markdown("### Maintenance Hours Forecast")
@@ -2074,18 +2114,20 @@ def page_reports():
             
             if st.button("Forecast Hours"):
                 maint_df = db.query('maintenance', limit=1000)
-                forecast = PredictiveAnalytics.forecast_maintenance_hours(maint_df, forecast_days)
-                
-                if 'error' not in forecast:
-                    st.metric("Daily Forecast", forecast['forecast_daily_hours'])
-                    st.metric("Total Forecast", forecast['total_forecast'])
-                    st.caption(f"Model: {forecast['model']}")
-                    if 'note' in forecast:
-                        st.info(forecast['note'])
+                if maint_df.empty:
+                    st.warning("No maintenance data available")
                 else:
-                    st.error(forecast['error'])
+                    forecast = PredictiveAnalytics.forecast_maintenance_hours(maint_df, forecast_days)
+                    
+                    if 'error' not in forecast:
+                        st.metric("Daily Forecast", forecast['forecast_daily_hours'])
+                        st.metric("Total Forecast", forecast['total_forecast'])
+                        st.caption(f"Model: {forecast['model']}")
+                        if 'note' in forecast:
+                            st.info(forecast['note'])
+                    else:
+                        st.error(forecast['error'])
     
-    # Custom Report Builder
     with tab3:
         st.subheader("Custom Report Builder")
         
@@ -2099,7 +2141,7 @@ def page_reports():
              "Trend Charts", "Top 10 Items"])
         
         if st.button("Build Custom Report"):
-            st.success("Custom report builder - Feature coming soon!")
+            st.info("🚧 Custom report builder - Feature in development!")
 
 # ============================================================================
 # MAIN APPLICATION
@@ -2108,7 +2150,6 @@ def page_reports():
 def main():
     """Main application entry point"""
     
-    # Page config
     st.set_page_config(
         page_title="PIA Operations",
         page_icon="✈️",
@@ -2116,17 +2157,13 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Apply custom styling
     apply_custom_css()
     
-    # Check authentication
     if not check_password():
         return
     
-    # Render header
     render_header()
     
-    # Sidebar navigation
     with st.sidebar:
         st.image("https://via.placeholder.com/200x80/006C35/FFFFFF?text=PIA", use_container_width=True)
         
@@ -2138,40 +2175,41 @@ def main():
             "📤 CSV Upload",
             "🗂️ Data Management",
             "💬 NL/AI Query",
+            "🤖 AI Assistant",  # NEW PAGE
             "📊 Reports"
         ])
         
         st.divider()
         
-        # User info
         if st.session_state.get('current_user'):
             user = st.session_state.current_user
             st.markdown(f"### 👤 {user['full_name']}")
             st.caption(f"@{user['username']} | {user['role'].title()}")
             
-            # LOGOUT BUTTON
             if st.button("🚪 Logout", use_container_width=True, type="secondary"):
                 st.session_state.authenticated = False
                 st.session_state.current_user = None
+                st.session_state.chat_history = []  # Clear chat history
                 st.success("Logged out successfully!")
                 time.sleep(1)
                 st.rerun()
             
             st.divider()
         
-        # System Info
         st.subheader("System Status")
         st.caption(f"Database: {db.db_type.upper()}")
         st.caption(f"Mode: {config.APP_MODE.upper()}")
         
-        if config.OPENAI_API_KEY:
-            st.success("✅ AI Enabled")
+        # AI Status
+        if config.GEMINI_API_KEY:
+            st.success("✅ Gemini AI Enabled")
+        elif config.GROQ_API_KEY:
+            st.success("✅ Groq AI Enabled")
         else:
             st.info("ℹ️ AI Disabled")
         
         st.divider()
         
-        # Quick Stats
         st.subheader("Quick Stats")
         maint_count = len(db.query('maintenance', limit=10))
         incidents_count = len(db.query('safety_incidents', limit=10))
@@ -2190,14 +2228,15 @@ def main():
         page_csv_upload()
     elif "Data Management" in page:
         page_data_management()
-    elif "NL/AI" in page:
+    elif "NL/AI Query" in page:
         page_nl_query()
+    elif "AI Assistant" in page:  # NEW PAGE
+        page_ai_chat()
     elif "Reports" in page:
         page_reports()
     
-    # Footer
     st.divider()
-    st.caption("© 2025 Pakistan International Airlines - Operations Management System v1.0 | Enhanced Authentication")
+    st.caption("© 2025 Pakistan International Airlines - Operations Management System v2.0 | Powered by Gemini AI")
 
 if __name__ == "__main__":
     main()
