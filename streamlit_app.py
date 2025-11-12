@@ -946,7 +946,7 @@ class NLQueryEngine:
                     'success': True,
                     'message': f'Found {len(delayed_df)} delayed flights',
                     'data': delayed_df[['flight_number', 'departure_airport', 'arrival_airport', 
-                                       'scheduled_departure', 'delay_reason']],
+                                        'scheduled_departure', 'delay_reason']],
                     'chart_type': 'table'
                 }
         
@@ -1358,8 +1358,8 @@ def page_dashboard():
         if not maintenance_df.empty:
             maint_type_counts = maintenance_df['maintenance_type'].value_counts()
             fig = px.bar(x=maint_type_counts.index, y=maint_type_counts.values,
-                        labels={'x': 'Type', 'y': 'Count'},
-                        color_discrete_sequence=[config.PRIMARY_COLOR])
+                         labels={'x': 'Type', 'y': 'Count'},
+                         color_discrete_sequence=[config.PRIMARY_COLOR])
             fig.update_layout(showlegend=False)
             st.plotly_chart(fig, use_container_width=True)
         else:
@@ -1370,7 +1370,7 @@ def page_dashboard():
         if not incidents_df.empty:
             severity_counts = incidents_df['severity'].value_counts()
             fig = px.pie(values=severity_counts.values, names=severity_counts.index,
-                        color_discrete_sequence=[config.PRIMARY_COLOR, config.ACCENT_COLOR, '#FFA500', '#FFD700'])
+                         color_discrete_sequence=[config.PRIMARY_COLOR, config.ACCENT_COLOR, '#FFA500', '#FFD700'])
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No incident data available")
@@ -1385,7 +1385,7 @@ def page_dashboard():
         daily_flights.columns = ['Date', 'Flights']
         
         fig = px.line(daily_flights, x='Date', y='Flights',
-                     color_discrete_sequence=[config.PRIMARY_COLOR])
+                      color_discrete_sequence=[config.PRIMARY_COLOR])
         fig.update_layout(hovermode='x unified')
         st.plotly_chart(fig, use_container_width=True)
     else:
@@ -1601,7 +1601,7 @@ def page_forms():
                         st.error("Failed to create record")
 
 # ============================================================================
-# PAGE: CSV UPLOAD (SAME AS BEFORE BUT SHORTENED FOR SPACE)
+# PAGE: CSV UPLOAD (MODIFIED AS REQUESTED)
 # ============================================================================
 
 def page_csv_upload():
@@ -1682,7 +1682,17 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,12000,Delayed,Technic
     
     st.info("📋 Upload a CSV file to bulk import records. The system will help you map columns to database fields.")
     
-    uploaded_file = st.file_uploader("Choose CSV file", type=['csv'])
+    # === MODIFICATION START ===
+    # Added a key to the file uploader
+    uploaded_file = st.file_uploader("Choose CSV file", type=['csv'], key="csv_file_uploader")
+    
+    # Add the delete button if a file is present
+    if uploaded_file is not None:
+        if st.button("🗑️ Delete/Clear Uploaded File", type="secondary"):
+            # Clear the file uploader by setting its session state key to None
+            st.session_state.csv_file_uploader = None
+            st.rerun() # Rerun the script to reflect the change
+    # === MODIFICATION END ===
     
     if uploaded_file:
         try:
@@ -1696,12 +1706,12 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,12000,Delayed,Technic
             
             expected_columns = {
                 'maintenance': ['aircraft_registration', 'maintenance_type', 'scheduled_date', 
-                               'technician_name', 'hours_spent', 'cost', 'status', 'priority'],
+                                'technician_name', 'hours_spent', 'cost', 'status', 'priority'],
                 'safety_incidents': ['incident_date', 'incident_type', 'severity', 
-                                    'aircraft_registration', 'description', 'investigation_status'],
+                                     'aircraft_registration', 'description', 'investigation_status'],
                 'flights': ['flight_number', 'aircraft_registration', 'departure_airport', 
-                           'arrival_airport', 'scheduled_departure', 'scheduled_arrival', 
-                           'passengers_count', 'flight_status']
+                            'arrival_airport', 'scheduled_departure', 'scheduled_arrival', 
+                            'passengers_count', 'flight_status']
             }
             
             column_mapping = {}
@@ -1888,14 +1898,14 @@ def page_nl_query():
                     with col1:
                         pdf_data = ReportGenerator.generate_pdf_report(analysis, "AI Analysis Report")
                         st.download_button("Download PDF", pdf_data, 
-                                         f"analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
-                                         "application/pdf")
+                                          f"analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
+                                          "application/pdf")
                     
                     with col2:
                         csv_data = df.to_csv(index=False).encode('utf-8')
                         st.download_button("Download CSV", csv_data,
-                                         f"data_{datetime.now().strftime('%Y%m%d')}.csv",
-                                         "text/csv")
+                                          f"data_{datetime.now().strftime('%Y%m%d')}.csv",
+                                          "text/csv")
 
 # ============================================================================
 # PAGE: GENERIC AI CHAT - NEW!
