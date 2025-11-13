@@ -39,7 +39,9 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, 'secrets') else "")
     OPENSKY_USERNAME = os.getenv("OPENSKY_USERNAME", st.secrets.get("OPENSKY_USERNAME", "") if hasattr(st, 'secrets') else "")
     OPENSKY_PASSWORD = os.getenv("OPENSKY_PASSWORD", st.secrets.get("OPENSKY_PASSWORD", "") if hasattr(st, 'secrets') else "")
-    WEATHER_API_KEY = os.getenv("WEATHER_API_KEY", st.secrets.get("WEATHER_API_KEY", "") if hasattr(st, 'secrets') else "")
+    
+    # Timezone - Pakistan Standard Time (GMT+5)
+    TIMEZONE_OFFSET = 5  # GMT+5)
     
     # Auth
     ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
@@ -62,6 +64,16 @@ class Config:
     CARD_BG = "#FFFFFF"
 
 config = Config()
+
+# ============================================================================
+# TIMEZONE HELPER
+# ============================================================================
+
+def get_pakistan_time():
+    """Get current time in Pakistan Standard Time (GMT+5)"""
+    from datetime import timezone
+    pkt = timezone(timedelta(hours=config.TIMEZONE_OFFSET))
+    return datetime.now(pkt)
 
 # ============================================================================
 # DATABASE LAYER (SAME AS BEFORE)
@@ -869,24 +881,69 @@ class ExternalDataService:
     
     @staticmethod
     def fetch_weather(city: str = "Karachi") -> Optional[Dict]:
-        """Fetch weather data from OpenWeatherMap"""
-        if not config.WEATHER_API_KEY:
-            return None
-        
+        """Fetch weather data from Open-Meteo (FREE, no API key needed!)"""
         try:
             import requests
-            response = requests.get(
-                f"http://api.openweathermap.org/data/2.5/weather",
-                params={
-                    'q': city,
-                    'appid': config.WEATHER_API_KEY,
-                    'units': 'metric'
-                },
-                timeout=10
-            )
+            
+            # City coordinates (latitude, longitude)
+            city_coords = {
+                "Karachi": (24.8607, 67.0011),
+                "Lahore": (31.5204, 74.3587),
+                "Islamabad": (33.6844, 73.0479),
+                "Peshawar": (34.0151, 71.5249),
+                "Quetta": (30.1798, 66.9750)
+            }
+            
+            lat, lon = city_coords.get(city, (24.8607, 67.0011))  # Default to Karachi
+            
+            # Open-Meteo API - completely free, no API key required!
+            url = f"https://api.open-meteo.com/v1/forecast"
+            params = {
+                'latitude': lat,
+                'longitude': lon,
+                'current_weather': True,
+                'temperature_unit': 'celsius',
+                'windspeed_unit': 'ms',
+                'timezone': 'auto'
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
             
             if response.status_code == 200:
-                return response.json()
+                data = response.json()
+                current = data.get('current_weather', {})
+                
+                # Map weather codes to descriptions
+                weather_codes = {
+                    0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+                    45: 'Foggy', 48: 'Foggy', 51: 'Light drizzle', 53: 'Moderate drizzle',
+                    55: 'Dense drizzle', 61: 'Slight rain', 63: 'Moderate rain',
+                    65: 'Heavy rain', 71: 'Slight snow', 73: 'Moderate snow',
+                    75: 'Heavy snow', 77: 'Snow grains', 80: 'Slight rain showers',
+                    81: 'Moderate rain showers', 82: 'Violent rain showers',
+                    85: 'Slight snow showers', 86: 'Heavy snow showers',
+                    95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with hail'
+                }
+                
+                weather_code = current.get('weathercode', 0)
+                description = weather_codes.get(weather_code, 'Unknown')
+                
+                # Convert to format similar to OpenWeatherMap for compatibility
+                return {
+                    'main': {
+                        'temp': current.get('temperature', 0),
+                        'humidity': 50  # Open-Meteo doesn't provide humidity in free tier
+                    },
+                    'weather': [{
+                        'description': description,
+                        'main': description.split()[0] if description else 'Clear'
+                    }],
+                    'wind': {
+                        'speed': current.get('windspeed', 0)
+                    },
+                    'source': 'Open-Meteo (Free)'
+                }
+                
         except Exception as e:
             logger.error(f"Weather API error: {e}")
         
@@ -1635,8 +1692,8 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header with live clock"""
-    current_time = datetime.now()
+    """Render application header with live clock in GMT+5"""
+    pkt_time = get_pakistan_time()
     st.markdown(f"""
         <div class="main-header">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
@@ -1648,13 +1705,13 @@ def render_header():
                     <div style="background:rgba(255,255,255,0.15);padding:1rem 1.5rem;border-radius:12px;
                                 backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);">
                         <div style="color:white;font-size:0.75rem;opacity:0.9;margin-bottom:0.3rem;">
-                            CURRENT TIME
+                            PAKISTAN TIME (GMT+5)
                         </div>
                         <div id="live-clock" style="color:white;font-size:1.8rem;font-weight:700;letter-spacing:1px;">
-                            {current_time.strftime('%H:%M:%S')}
+                            {pkt_time.strftime('%H:%M:%S')}
                         </div>
                         <div id="live-date" style="color:white;font-size:0.75rem;opacity:0.8;margin-top:0.2rem;">
-                            {current_time.strftime('%a, %d %b %Y')}
+                            {pkt_time.strftime('%a, %d %b %Y')}
                         </div>
                     </div>
                 </div>
@@ -1663,21 +1720,24 @@ def render_header():
         
         <script>
         function updateClock() {{
+            // Get current time in GMT+5 (Pakistan Standard Time)
             const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const pkt = new Date(utc + (3600000 * 5)); // GMT+5
             
             // Update time
-            const hours = String(now.getHours()).padStart(2, '0');
-            const minutes = String(now.getMinutes()).padStart(2, '0');
-            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const hours = String(pkt.getHours()).padStart(2, '0');
+            const minutes = String(pkt.getMinutes()).padStart(2, '0');
+            const seconds = String(pkt.getSeconds()).padStart(2, '0');
             const timeString = hours + ':' + minutes + ':' + seconds;
             
             // Update date
             const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const dateString = days[now.getDay()] + ', ' + 
-                              String(now.getDate()).padStart(2, '0') + ' ' + 
-                              months[now.getMonth()] + ' ' + 
-                              now.getFullYear();
+            const dateString = days[pkt.getDay()] + ', ' + 
+                              String(pkt.getDate()).padStart(2, '0') + ' ' + 
+                              months[pkt.getMonth()] + ' ' + 
+                              pkt.getFullYear();
             
             const clockElement = document.getElementById('live-clock');
             const dateElement = document.getElementById('live-date');
@@ -1759,20 +1819,28 @@ def page_dashboard():
         st.metric("Maintenance Hours", f"{total_hours:,.0f}", delta="This period")
     
     with col5:
-        # Weather summary
+        # Weather summary - FREE, no API key needed!
         weather_data = ExternalDataService.fetch_weather("Karachi")
         if weather_data:
             temp = weather_data['main']['temp']
             description = weather_data['weather'][0]['description'].title()
             weather_icons = {
-                'clear': '☀️', 'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
-                'thunderstorm': '⛈️', 'snow': '❄️', 'mist': '🌫️', 'fog': '🌫️'
+                'clear': '☀️', 'mainly': '🌤️', 'partly': '⛅', 'overcast': '☁️',
+                'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
+                'thunderstorm': '⛈️', 'snow': '❄️', 'fog': '🌫️'
             }
-            weather_main = weather_data['weather'][0]['main'].lower()
-            icon = weather_icons.get(weather_main, '🌤️')
-            st.metric(f"{icon} Karachi", f"{temp}°C", delta=description)
+            
+            # Find matching icon
+            icon = '🌤️'
+            desc_lower = description.lower()
+            for key, emoji in weather_icons.items():
+                if key in desc_lower:
+                    icon = emoji
+                    break
+            
+            st.metric(f"{icon} Karachi", f"{temp:.1f}°C", delta=description)
         else:
-            st.metric("🌤️ Weather", "N/A", delta="API key needed")
+            st.metric("🌤️ Weather", "Loading...", delta="Fetching data")
     
     st.divider()
     
@@ -1834,16 +1902,21 @@ def page_dashboard():
         
         with col2:
             st.subheader("Weather Conditions")
-            city = st.selectbox("Select Airport City", ["Karachi", "Lahore", "Islamabad"])
+            city = st.selectbox("Select Airport City", ["Karachi", "Lahore", "Islamabad", "Peshawar", "Quetta"])
             if st.button("Fetch Weather"):
                 with st.spinner("Fetching weather data..."):
                     weather = ExternalDataService.fetch_weather(city)
                     if weather:
-                        st.metric("Temperature", f"{weather['main']['temp']}°C")
-                        st.metric("Conditions", weather['weather'][0]['description'].title())
-                        st.metric("Wind Speed", f"{weather['wind']['speed']} m/s")
+                        st.success("✅ Using Open-Meteo (Free Weather API)")
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Temperature", f"{weather['main']['temp']:.1f}°C")
+                        with col_b:
+                            st.metric("Conditions", weather['weather'][0]['description'].title())
+                        with col_c:
+                            st.metric("Wind Speed", f"{weather['wind']['speed']:.1f} m/s")
                     else:
-                        st.info("Weather API key not configured")
+                        st.error("Unable to fetch weather data. Check internet connection.")
     
     # Admin Tools
     if st.session_state.get('current_user', {}).get('role') == 'admin':
@@ -2600,39 +2673,46 @@ def main():
     with st.sidebar:
         st.image("https://via.placeholder.com/200x80/006C35/FFFFFF?text=PIA", use_container_width=True)
         
-        # Live Clock
+        # Live Clock - GMT+5 (Pakistan Standard Time)
+        pkt_time = get_pakistan_time()
         st.markdown(f"""
             <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
                         padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
                         box-shadow:0 4px 15px rgba(0,108,53,0.2);">
                 <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;opacity:0.9;">
-                    🕐 CURRENT TIME
+                    🕐 PAKISTAN TIME (GMT+5)
                 </div>
                 <div style="color:white;font-size:1.8rem;font-weight:800;letter-spacing:1px;">
-                    {datetime.now().strftime('%H:%M:%S')}
+                    {pkt_time.strftime('%H:%M:%S')}
                 </div>
                 <div style="color:white;font-size:0.85rem;opacity:0.8;margin-top:0.3rem;">
-                    {datetime.now().strftime('%A, %B %d, %Y')}
+                    {pkt_time.strftime('%A, %B %d, %Y')}
                 </div>
             </div>
         """, unsafe_allow_html=True)
         
-        # Weather Widget
+        # Weather Widget - FREE (No API key needed!)
         weather_data = ExternalDataService.fetch_weather("Karachi")
         if weather_data:
             temp = weather_data['main']['temp']
             description = weather_data['weather'][0]['description'].title()
-            humidity = weather_data['main']['humidity']
             wind_speed = weather_data['wind']['speed']
             
             # Weather icon mapping
             weather_icons = {
-                'clear': '☀️', 'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
-                'thunderstorm': '⛈️', 'snow': '❄️', 'mist': '🌫️', 'fog': '🌫️',
+                'clear': '☀️', 'mainly': '🌤️', 'partly': '⛅', 'overcast': '☁️',
+                'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
+                'thunderstorm': '⛈️', 'snow': '❄️', 'fog': '🌫️',
                 'haze': '🌫️', 'dust': '💨', 'smoke': '💨'
             }
-            weather_main = weather_data['weather'][0]['main'].lower()
-            icon = weather_icons.get(weather_main, '🌤️')
+            
+            # Find matching icon
+            icon = '🌤️'
+            desc_lower = description.lower()
+            for key, emoji in weather_icons.items():
+                if key in desc_lower:
+                    icon = emoji
+                    break
             
             st.markdown(f"""
                 <div style="background:linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
@@ -2645,20 +2725,23 @@ def main():
                         {icon}
                     </div>
                     <div style="color:white;font-size:2rem;font-weight:800;margin-bottom:0.3rem;">
-                        {temp}°C
+                        {temp:.1f}°C
                     </div>
                     <div style="color:white;font-size:0.95rem;opacity:0.9;margin-bottom:0.8rem;">
                         {description}
                     </div>
                     <div style="display:flex;justify-content:space-around;color:white;font-size:0.8rem;">
                         <div style="text-align:center;">
-                            <div style="opacity:0.8;">💧 Humidity</div>
-                            <div style="font-weight:600;">{humidity}%</div>
+                            <div style="opacity:0.8;">💨 Wind</div>
+                            <div style="font-weight:600;">{wind_speed:.1f} m/s</div>
                         </div>
                         <div style="text-align:center;">
-                            <div style="opacity:0.8;">💨 Wind</div>
-                            <div style="font-weight:600;">{wind_speed} m/s</div>
+                            <div style="opacity:0.8;">📡 Source</div>
+                            <div style="font-weight:600;">Open-Meteo</div>
                         </div>
+                    </div>
+                    <div style="color:white;font-size:0.7rem;opacity:0.7;margin-top:0.5rem;">
+                        ✨ Free Weather API
                     </div>
                 </div>
             """, unsafe_allow_html=True)
@@ -2671,7 +2754,7 @@ def main():
                         🌍 WEATHER
                     </div>
                     <div style="color:white;font-size:0.9rem;opacity:0.8;">
-                        Add WEATHER_API_KEY<br>to enable live weather
+                        Unable to fetch weather data.<br>Check your internet connection.
                     </div>
                 </div>
             """, unsafe_allow_html=True)
