@@ -1,4 +1,4 @@
-"""
+]"""
 PIA Operations - Production-Ready Airline Operational Reporting System
 A scalable, secure, and comprehensive operations management system for Pakistan International Airlines
 ENHANCED WITH COMPLETE AUTHENTICATION SYSTEM + GEMINI AI + GENERIC CHAT + BEAUTIFUL UI
@@ -507,10 +507,15 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
-    # Beautiful login page
+    # Beautiful login page with PIA logo
     st.markdown(f'''
         <div style="text-align:center;margin:3rem 0 2rem 0;">
-            <div style="font-size:6rem;margin-bottom:1rem;animation:float 3s ease-in-out infinite;">✈️</div>
+            <div style="margin-bottom:1.5rem;">
+                <img src="https://www.piac.com.pk/assets/images/pia-logo.png" 
+                     style="width:200px;height:auto;animation:float 3s ease-in-out infinite;"
+                     onerror="this.style.display='none';"
+                     alt="PIA Logo">
+            </div>
             <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
                         -webkit-background-clip:text;-webkit-text-fill-color:transparent;
                         font-size:3.5rem;font-weight:800;margin-bottom:0.5rem;letter-spacing:-1px;">
@@ -1692,14 +1697,20 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header with live clock in GMT+5"""
+    """Render application header with live clock in GMT+5 and PIA logo"""
     pkt_time = get_pakistan_time()
     st.markdown(f"""
         <div class="main-header">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
-                <div style="flex:1;min-width:300px;">
-                    <h1>✈️ PIA Operations Dashboard</h1>
-                    <p>Real-time operational reporting and analytics for Pakistan International Airlines</p>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
+                <div style="display:flex;align-items:center;gap:1.5rem;flex:1;min-width:300px;">
+                    <img src="https://www.piac.com.pk/assets/images/pia-logo-white.png" 
+                         style="height:60px;width:auto;filter:brightness(0) invert(1);"
+                         onerror="this.style.display='none';"
+                         alt="PIA Logo">
+                    <div>
+                        <h1 style="margin:0;">PIA Operations Dashboard</h1>
+                        <p style="margin:0.3rem 0 0 0;">Real-time operational reporting and analytics for Pakistan International Airlines</p>
+                    </div>
                 </div>
                 <div style="text-align:right;min-width:200px;">
                     <div style="background:rgba(255,255,255,0.15);padding:1rem 1.5rem;border-radius:12px;
@@ -2658,7 +2669,7 @@ def main():
     
     st.set_page_config(
         page_title="PIA Operations",
-        page_icon="✈️",
+        page_icon="https://www.piac.com.pk/favicon.ico",  # Official PIA favicon
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -2671,7 +2682,15 @@ def main():
     render_header()
     
     with st.sidebar:
-        st.image("https://via.placeholder.com/200x80/006C35/FFFFFF?text=PIA", use_container_width=True)
+        # PIA Logo
+        st.markdown("""
+            <div style="text-align:center;padding:1rem 0;background:white;border-radius:12px;margin-bottom:1rem;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+                <img src="https://www.piac.com.pk/assets/images/pia-logo.png" 
+                     style="width:180px;height:auto;"
+                     onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%2280%22><rect fill=%22%23006C35%22 width=%22200%22 height=%2280%22/><text x=%2250%25%22 y=%2250%25%22 font-size=%2224%22 fill=%22white%22 text-anchor=%22middle%22 dy=%22.3em%22 font-weight=%22bold%22>PIA</text></svg>';"
+                     alt="PIA Logo">
+            </div>
+        """, unsafe_allow_html=True)
         
         # Live Clock - GMT+5 (Pakistan Standard Time)
         pkt_time = get_pakistan_time()
@@ -2680,7 +2699,7 @@ def main():
                         padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
                         box-shadow:0 4px 15px rgba(0,108,53,0.2);">
                 <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;opacity:0.9;">
-                    🕐 PAKISTAN TIME (GMT+5)
+                    ⏰ PAKISTAN TIME (GMT+5)
                 </div>
                 <div style="color:white;font-size:1.8rem;font-weight:800;letter-spacing:1px;">
                     {pkt_time.strftime('%H:%M:%S')}
