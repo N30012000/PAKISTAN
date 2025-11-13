@@ -1635,12 +1635,61 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header"""
-    st.markdown("""
+    """Render application header with live clock"""
+    current_time = datetime.now()
+    st.markdown(f"""
         <div class="main-header">
-            <h1>✈️ PIA Operations Dashboard</h1>
-            <p>Real-time operational reporting and analytics for Pakistan International Airlines</p>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+                <div style="flex:1;min-width:300px;">
+                    <h1>✈️ PIA Operations Dashboard</h1>
+                    <p>Real-time operational reporting and analytics for Pakistan International Airlines</p>
+                </div>
+                <div style="text-align:right;min-width:200px;">
+                    <div style="background:rgba(255,255,255,0.15);padding:1rem 1.5rem;border-radius:12px;
+                                backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);">
+                        <div style="color:white;font-size:0.75rem;opacity:0.9;margin-bottom:0.3rem;">
+                            CURRENT TIME
+                        </div>
+                        <div id="live-clock" style="color:white;font-size:1.8rem;font-weight:700;letter-spacing:1px;">
+                            {current_time.strftime('%H:%M:%S')}
+                        </div>
+                        <div id="live-date" style="color:white;font-size:0.75rem;opacity:0.8;margin-top:0.2rem;">
+                            {current_time.strftime('%a, %d %b %Y')}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+        
+        <script>
+        function updateClock() {{
+            const now = new Date();
+            
+            // Update time
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const timeString = hours + ':' + minutes + ':' + seconds;
+            
+            // Update date
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const dateString = days[now.getDay()] + ', ' + 
+                              String(now.getDate()).padStart(2, '0') + ' ' + 
+                              months[now.getMonth()] + ' ' + 
+                              now.getFullYear();
+            
+            const clockElement = document.getElementById('live-clock');
+            const dateElement = document.getElementById('live-date');
+            
+            if (clockElement) clockElement.textContent = timeString;
+            if (dateElement) dateElement.textContent = dateString;
+        }}
+        
+        // Update immediately and then every second
+        updateClock();
+        setInterval(updateClock, 1000);
+        </script>
     """, unsafe_allow_html=True)
 
 def render_kpi_card(label: str, value: str, delta: str = None):
@@ -1688,7 +1737,7 @@ def page_dashboard():
         return
     
     # KPI Cards
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         total_maintenance = len(maintenance_df)
@@ -1708,6 +1757,22 @@ def page_dashboard():
     with col4:
         total_hours = maintenance_df['hours_spent'].sum() if not maintenance_df.empty else 0
         st.metric("Maintenance Hours", f"{total_hours:,.0f}", delta="This period")
+    
+    with col5:
+        # Weather summary
+        weather_data = ExternalDataService.fetch_weather("Karachi")
+        if weather_data:
+            temp = weather_data['main']['temp']
+            description = weather_data['weather'][0]['description'].title()
+            weather_icons = {
+                'clear': '☀️', 'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
+                'thunderstorm': '⛈️', 'snow': '❄️', 'mist': '🌫️', 'fog': '🌫️'
+            }
+            weather_main = weather_data['weather'][0]['main'].lower()
+            icon = weather_icons.get(weather_main, '🌤️')
+            st.metric(f"{icon} Karachi", f"{temp}°C", delta=description)
+        else:
+            st.metric("🌤️ Weather", "N/A", delta="API key needed")
     
     st.divider()
     
@@ -2535,6 +2600,82 @@ def main():
     with st.sidebar:
         st.image("https://via.placeholder.com/200x80/006C35/FFFFFF?text=PIA", use_container_width=True)
         
+        # Live Clock
+        st.markdown(f"""
+            <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+                        padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
+                        box-shadow:0 4px 15px rgba(0,108,53,0.2);">
+                <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;opacity:0.9;">
+                    🕐 CURRENT TIME
+                </div>
+                <div style="color:white;font-size:1.8rem;font-weight:800;letter-spacing:1px;">
+                    {datetime.now().strftime('%H:%M:%S')}
+                </div>
+                <div style="color:white;font-size:0.85rem;opacity:0.8;margin-top:0.3rem;">
+                    {datetime.now().strftime('%A, %B %d, %Y')}
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Weather Widget
+        weather_data = ExternalDataService.fetch_weather("Karachi")
+        if weather_data:
+            temp = weather_data['main']['temp']
+            description = weather_data['weather'][0]['description'].title()
+            humidity = weather_data['main']['humidity']
+            wind_speed = weather_data['wind']['speed']
+            
+            # Weather icon mapping
+            weather_icons = {
+                'clear': '☀️', 'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
+                'thunderstorm': '⛈️', 'snow': '❄️', 'mist': '🌫️', 'fog': '🌫️',
+                'haze': '🌫️', 'dust': '💨', 'smoke': '💨'
+            }
+            weather_main = weather_data['weather'][0]['main'].lower()
+            icon = weather_icons.get(weather_main, '🌤️')
+            
+            st.markdown(f"""
+                <div style="background:linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+                            padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
+                            box-shadow:0 4px 15px rgba(74,144,226,0.2);">
+                    <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;opacity:0.9;">
+                        🌍 KARACHI WEATHER
+                    </div>
+                    <div style="color:white;font-size:3rem;margin:0.5rem 0;">
+                        {icon}
+                    </div>
+                    <div style="color:white;font-size:2rem;font-weight:800;margin-bottom:0.3rem;">
+                        {temp}°C
+                    </div>
+                    <div style="color:white;font-size:0.95rem;opacity:0.9;margin-bottom:0.8rem;">
+                        {description}
+                    </div>
+                    <div style="display:flex;justify-content:space-around;color:white;font-size:0.8rem;">
+                        <div style="text-align:center;">
+                            <div style="opacity:0.8;">💧 Humidity</div>
+                            <div style="font-weight:600;">{humidity}%</div>
+                        </div>
+                        <div style="text-align:center;">
+                            <div style="opacity:0.8;">💨 Wind</div>
+                            <div style="font-weight:600;">{wind_speed} m/s</div>
+                        </div>
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+                <div style="background:linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+                            padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
+                            box-shadow:0 4px 15px rgba(149,165,166,0.2);">
+                    <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">
+                        🌍 WEATHER
+                    </div>
+                    <div style="color:white;font-size:0.9rem;opacity:0.8;">
+                        Add WEATHER_API_KEY<br>to enable live weather
+                    </div>
+                </div>
+            """, unsafe_allow_html=True)
+        
         st.title("Navigation")
         
         page = st.radio("Go to", [
@@ -2548,6 +2689,13 @@ def main():
         ])
         
         st.divider()
+        
+        # Auto-refresh toggle for live updates
+        auto_refresh = st.checkbox("🔄 Auto-refresh (30s)", value=False)
+        if auto_refresh:
+            st.caption("Live updates enabled")
+            time.sleep(30)
+            st.rerun()
         
         if st.session_state.get('current_user'):
             user = st.session_state.current_user
