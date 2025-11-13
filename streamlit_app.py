@@ -1,7 +1,7 @@
 """
 PIA Operations - Production-Ready Airline Operational Reporting System
 A scalable, secure, and comprehensive operations management system for Pakistan International Airlines
-ENHANCED WITH COMPLETE AUTHENTICATION SYSTEM + GEMINI AI + GENERIC CHAT
+ENHANCED WITH COMPLETE AUTHENTICATION SYSTEM + GEMINI AI + GENERIC CHAT + BEAUTIFUL UI
 """
 
 import streamlit as st
@@ -49,11 +49,17 @@ class Config:
     APP_MODE = os.getenv("APP_MODE", "production")  # Changed to production
     ENABLE_AUTH = os.getenv("ENABLE_AUTH", "true").lower() == "true"
     
-    # PIA Brand Colors
+    # PIA Brand Colors - Enhanced
     PRIMARY_COLOR = "#006C35"  # PIA Green
+    PRIMARY_LIGHT = "#00A651"  # Lighter Green
+    PRIMARY_DARK = "#004d26"   # Darker Green
     SECONDARY_COLOR = "#FFFFFF"  # White
     ACCENT_COLOR = "#C8102E"  # Red
+    ACCENT_LIGHT = "#E85D75"  # Light Red
     TEXT_COLOR = "#1E1E1E"
+    TEXT_LIGHT = "#6C757D"
+    BACKGROUND = "#F8F9FA"
+    CARD_BG = "#FFFFFF"
 
 config = Config()
 
@@ -489,14 +495,26 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
-    st.markdown('<div style="text-align:center;font-size:5rem;margin-bottom:1rem;">✈️</div>', unsafe_allow_html=True)
+    # Beautiful login page
     st.markdown(f'''
-        <div style="text-align:center;color:{config.PRIMARY_COLOR};font-size:3rem;font-weight:700;margin-bottom:0.5rem;">
-            PIA Operations
+        <div style="text-align:center;margin:3rem 0 2rem 0;">
+            <div style="font-size:6rem;margin-bottom:1rem;animation:float 3s ease-in-out infinite;">✈️</div>
+            <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                        font-size:3.5rem;font-weight:800;margin-bottom:0.5rem;letter-spacing:-1px;">
+                PIA Operations
+            </div>
+            <div style="color:{config.TEXT_LIGHT};font-size:1.2rem;font-weight:300;">
+                Operational Reporting & Analytics System
+            </div>
         </div>
-        <div style="text-align:center;color:#666;font-size:1.1rem;margin-bottom:2rem;">
-            Operational Reporting & Analytics System
-        </div>
+        
+        <style>
+        @keyframes float {{
+            0%, 100% {{ transform: translateY(0px); }}
+            50% {{ transform: translateY(-20px); }}
+        }}
+        </style>
     ''', unsafe_allow_html=True)
     
     tab1, tab2, tab3 = st.tabs(["🔐 Login", "📝 Sign Up", "🔑 Reset Password"])
@@ -1168,105 +1186,450 @@ class PredictiveAnalytics:
             return {'error': str(e)}
 
 # ============================================================================
-# UI COMPONENTS
+# UI COMPONENTS - ENHANCED
 # ============================================================================
 
 def apply_custom_css():
-    """Apply custom PIA branding and styling"""
+    """Apply custom PIA branding and styling - ENHANCED VERSION"""
     st.markdown(f"""
         <style>
-        :root {{
-            --primary-color: {config.PRIMARY_COLOR};
-            --secondary-color: {config.SECONDARY_COLOR};
-            --accent-color: {config.ACCENT_COLOR};
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {{
+            font-family: 'Inter', sans-serif;
         }}
         
+        :root {{
+            --primary-color: {config.PRIMARY_COLOR};
+            --primary-light: {config.PRIMARY_LIGHT};
+            --primary-dark: {config.PRIMARY_DARK};
+            --secondary-color: {config.SECONDARY_COLOR};
+            --accent-color: {config.ACCENT_COLOR};
+            --accent-light: {config.ACCENT_LIGHT};
+            --text-color: {config.TEXT_COLOR};
+            --text-light: {config.TEXT_LIGHT};
+            --background: {config.BACKGROUND};
+            --card-bg: {config.CARD_BG};
+        }}
+        
+        /* Main app background */
+        .stApp {{
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8ecef 100%);
+        }}
+        
+        /* Header styling */
         .main-header {{
-            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, #004d26 100%);
-            padding: 2rem;
-            border-radius: 10px;
+            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+            padding: 2.5rem 2rem;
+            border-radius: 16px;
             margin-bottom: 2rem;
             color: white;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0,108,53,0.2);
+            position: relative;
+            overflow: hidden;
+        }}
+        
+        .main-header::before {{
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            animation: shimmer 8s ease-in-out infinite;
+        }}
+        
+        @keyframes shimmer {{
+            0%, 100% {{ transform: translate(0, 0); }}
+            50% {{ transform: translate(-10%, -10%); }}
         }}
         
         .main-header h1 {{
             margin: 0;
-            font-size: 2.5rem;
-            font-weight: 700;
+            font-size: 2.8rem;
+            font-weight: 800;
+            position: relative;
+            z-index: 1;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }}
         
         .main-header p {{
-            margin: 0.5rem 0 0 0;
-            opacity: 0.9;
+            margin: 0.7rem 0 0 0;
+            opacity: 0.95;
+            font-size: 1.1rem;
+            font-weight: 300;
+            position: relative;
+            z-index: 1;
         }}
         
+        /* KPI Cards - Enhanced */
         .kpi-card {{
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            border-left: 4px solid {config.PRIMARY_COLOR};
-            margin-bottom: 1rem;
+            background: linear-gradient(135deg, white 0%, #f8f9fa 100%);
+            padding: 1.8rem;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border-left: 5px solid {config.PRIMARY_COLOR};
+            margin-bottom: 1.5rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }}
+        
+        .kpi-card::before {{
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, {config.PRIMARY_COLOR}15 0%, transparent 70%);
+            transition: all 0.3s ease;
+        }}
+        
+        .kpi-card:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0,108,53,0.15);
+        }}
+        
+        .kpi-card:hover::before {{
+            width: 150px;
+            height: 150px;
         }}
         
         .kpi-value {{
-            font-size: 2rem;
-            font-weight: 700;
-            color: {config.PRIMARY_COLOR};
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_LIGHT} 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
             margin: 0.5rem 0;
+            position: relative;
+            z-index: 1;
         }}
         
         .kpi-label {{
-            color: #666;
+            color: {config.TEXT_LIGHT};
             font-size: 0.9rem;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
         }}
         
+        /* Status Badges - Enhanced */
         .status-badge {{
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
             font-size: 0.85rem;
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.2s ease;
         }}
         
-        .status-success {{ background: #d4edda; color: #155724; }}
-        .status-warning {{ background: #fff3cd; color: #856404; }}
-        .status-danger {{ background: #f8d7da; color: #721c24; }}
-        .status-info {{ background: #d1ecf1; color: #0c5460; }}
+        .status-badge:hover {{
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }}
         
+        .status-success {{ 
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); 
+            color: #155724; 
+        }}
+        .status-warning {{ 
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); 
+            color: #856404; 
+        }}
+        .status-danger {{ 
+            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); 
+            color: #721c24; 
+        }}
+        .status-info {{ 
+            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%); 
+            color: #0c5460; 
+        }}
+        
+        /* Buttons - Enhanced */
         .stButton>button {{
-            background-color: {config.PRIMARY_COLOR};
+            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
             color: white;
             border: none;
-            border-radius: 5px;
-            padding: 0.5rem 2rem;
+            border-radius: 12px;
+            padding: 0.7rem 2.5rem;
             font-weight: 600;
-            transition: all 0.3s;
+            font-size: 1rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 15px rgba(0,108,53,0.2);
+            position: relative;
+            overflow: hidden;
+        }}
+        
+        .stButton>button::before {{
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }}
+        
+        .stButton>button:hover::before {{
+            width: 300px;
+            height: 300px;
         }}
         
         .stButton>button:hover {{
-            background-color: #004d26;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,108,53,0.3);
         }}
         
-        @media (max-width: 768px) {{
-            .main-header h1 {{
-                font-size: 1.75rem;
-            }}
-            .kpi-value {{
-                font-size: 1.5rem;
-            }}
+        .stButton>button:active {{
+            transform: translateY(0);
         }}
         
+        /* Forms - Enhanced */
+        .stTextInput>div>div>input, 
+        .stSelectbox>div>div>div,
+        .stTextArea>div>div>textarea {{
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            padding: 0.7rem 1rem;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }}
+        
+        .stTextInput>div>div>input:focus, 
+        .stSelectbox>div>div>div:focus,
+        .stTextArea>div>div>textarea:focus {{
+            border-color: {config.PRIMARY_COLOR};
+            box-shadow: 0 0 0 3px {config.PRIMARY_COLOR}20;
+        }}
+        
+        /* Tabs - Enhanced */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 8px;
+            background-color: white;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }}
+        
+        .stTabs [data-baseweb="tab"] {{
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }}
+        
+        .stTabs [data-baseweb="tab"]:hover {{
+            background-color: {config.PRIMARY_COLOR}10;
+        }}
+        
+        .stTabs [aria-selected="true"] {{
+            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+            color: white;
+        }}
+        
+        /* Sidebar - Enhanced */
+        [data-testid="stSidebar"] {{
+            background: linear-gradient(180deg, white 0%, #f8f9fa 100%);
+            box-shadow: 4px 0 20px rgba(0,0,0,0.05);
+        }}
+        
+        [data-testid="stSidebar"] .stRadio > label {{
+            background: white;
+            padding: 0.8rem 1.2rem;
+            border-radius: 10px;
+            margin-bottom: 0.5rem;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }}
+        
+        [data-testid="stSidebar"] .stRadio > label:hover {{
+            background: {config.PRIMARY_COLOR}10;
+            border-color: {config.PRIMARY_COLOR}30;
+            transform: translateX(5px);
+        }}
+        
+        /* Metrics - Enhanced */
+        [data-testid="stMetricValue"] {{
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_LIGHT} 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }}
+        
+        /* DataFrames - Enhanced */
         .dataframe {{
             font-size: 0.9rem;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }}
         
-        .css-1d391kg {{
-            background-color: #f8f9fa;
+        .dataframe thead tr {{
+            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+            color: white;
+        }}
+        
+        .dataframe tbody tr:hover {{
+            background-color: {config.PRIMARY_COLOR}10;
+            transition: background-color 0.2s ease;
+        }}
+        
+        /* Expanders - Enhanced */
+        .streamlit-expanderHeader {{
+            background: linear-gradient(135deg, white 0%, #f8f9fa 100%);
+            border-radius: 12px;
+            font-weight: 600;
+            padding: 1rem;
+            transition: all 0.3s ease;
+            border: 2px solid #e0e0e0;
+        }}
+        
+        .streamlit-expanderHeader:hover {{
+            border-color: {config.PRIMARY_COLOR};
+            box-shadow: 0 4px 15px rgba(0,108,53,0.1);
+        }}
+        
+        /* Info/Success/Warning/Error boxes - Enhanced */
+        .stAlert {{
+            border-radius: 12px;
+            border-left-width: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            animation: slideIn 0.3s ease;
+        }}
+        
+        @keyframes slideIn {{
+            from {{
+                opacity: 0;
+                transform: translateY(-10px);
+            }}
+            to {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
+        }}
+        
+        /* Dividers - Enhanced */
+        hr {{
+            margin: 2rem 0;
+            border: none;
+            height: 2px;
+            background: linear-gradient(90deg, transparent 0%, {config.PRIMARY_COLOR}30 50%, transparent 100%);
+        }}
+        
+        /* Code blocks - Enhanced */
+        .stCodeBlock {{
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }}
+        
+        /* Plotly charts - Enhanced container */
+        .js-plotly-plot {{
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }}
+        
+        /* Scrollbars - Enhanced */
+        ::-webkit-scrollbar {{
+            width: 10px;
+            height: 10px;
+        }}
+        
+        ::-webkit-scrollbar-track {{
+            background: #f1f1f1;
+            border-radius: 10px;
+        }}
+        
+        ::-webkit-scrollbar-thumb {{
+            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+            border-radius: 10px;
+            transition: background 0.3s ease;
+        }}
+        
+        ::-webkit-scrollbar-thumb:hover {{
+            background: {config.PRIMARY_DARK};
+        }}
+        
+        /* Loading animation */
+        .stSpinner > div {{
+            border-color: {config.PRIMARY_COLOR} transparent transparent transparent;
+        }}
+        
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {{
+            .main-header h1 {{
+                font-size: 2rem;
+            }}
+            .kpi-value {{
+                font-size: 1.8rem;
+            }}
+            .stButton>button {{
+                padding: 0.6rem 1.5rem;
+                font-size: 0.9rem;
+            }}
+        }}
+        
+        /* Animations */
+        @keyframes fadeIn {{
+            from {{ opacity: 0; transform: translateY(20px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+        
+        .element-container {{
+            animation: fadeIn 0.5s ease;
+        }}
+        
+        /* Download buttons - Enhanced */
+        .stDownloadButton>button {{
+            background: linear-gradient(135deg, {config.ACCENT_COLOR} 0%, #a00d25 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 0.7rem 2rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(200,16,46,0.2);
+        }}
+        
+        .stDownloadButton>button:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(200,16,46,0.3);
+        }}
+        
+        /* File uploader - Enhanced */
+        [data-testid="stFileUploader"] {{
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 2px dashed {config.PRIMARY_COLOR}40;
+            transition: all 0.3s ease;
+        }}
+        
+        [data-testid="stFileUploader"]:hover {{
+            border-color: {config.PRIMARY_COLOR};
+            box-shadow: 0 4px 20px rgba(0,108,53,0.1);
+        }}
+        
+        /* Number input - Enhanced */
+        .stNumberInput>div>div>input {{
+            border-radius: 10px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.3s ease;
+        }}
+        
+        .stNumberInput>div>div>input:focus {{
+            border-color: {config.PRIMARY_COLOR};
+            box-shadow: 0 0 0 3px {config.PRIMARY_COLOR}20;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -1314,7 +1677,6 @@ def page_dashboard():
     incidents_df = db.query('safety_incidents', limit=1000)
     flights_df = db.query('flights', limit=1000)
     
-    # ========= DEMO DATA REMOVED =========
     # Show message if no data instead of auto-generating
     if maintenance_df.empty and incidents_df.empty and flights_df.empty:
         st.info("📝 **No data found.** Please add data using:")
@@ -1324,7 +1686,6 @@ def page_dashboard():
         with col2:
             st.markdown("- **📤 CSV Upload** - Bulk import data")
         return
-    # =====================================
     
     # KPI Cards
     col1, col2, col3, col4 = st.columns(4)
@@ -1445,7 +1806,7 @@ def page_dashboard():
                         st.rerun()
 
 # ============================================================================
-# PAGE: FORMS & SUBMIT (SAME AS BEFORE - TOO LONG TO INCLUDE HERE)
+# PAGE: FORMS & SUBMIT (SAME AS BEFORE)
 # ============================================================================
 
 def page_forms():
@@ -1682,17 +2043,14 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,12000,Delayed,Technic
     
     st.info("📋 Upload a CSV file to bulk import records. The system will help you map columns to database fields.")
     
-    # === MODIFICATION START ===
-    # Added a key to the file uploader
+    # Modified section with delete button
     uploaded_file = st.file_uploader("Choose CSV file", type=['csv'], key="csv_file_uploader")
     
     # Add the delete button if a file is present
     if uploaded_file is not None:
         if st.button("🗑️ Delete/Clear Uploaded File", type="secondary"):
-            # Clear the file uploader by setting its session state key to None
             st.session_state.csv_file_uploader = None
-            st.rerun() # Rerun the script to reflect the change
-    # === MODIFICATION END ===
+            st.rerun()
     
     if uploaded_file:
         try:
@@ -2007,7 +2365,7 @@ Help the user with any questions they have, whether about airline operations, te
         """)
 
 # ============================================================================
-# PAGE: REPORTS (SHORTENED FOR SPACE - SAME AS BEFORE)
+# PAGE: REPORTS (SHORTENED VERSION)
 # ============================================================================
 
 def page_reports():
@@ -2185,7 +2543,7 @@ def main():
             "📤 CSV Upload",
             "🗂️ Data Management",
             "💬 NL/AI Query",
-            "🤖 AI Assistant",  # NEW PAGE
+            "🤖 AI Assistant",
             "📊 Reports"
         ])
         
@@ -2199,7 +2557,7 @@ def main():
             if st.button("🚪 Logout", use_container_width=True, type="secondary"):
                 st.session_state.authenticated = False
                 st.session_state.current_user = None
-                st.session_state.chat_history = []  # Clear chat history
+                st.session_state.chat_history = []
                 st.success("Logged out successfully!")
                 time.sleep(1)
                 st.rerun()
@@ -2240,7 +2598,7 @@ def main():
         page_data_management()
     elif "NL/AI Query" in page:
         page_nl_query()
-    elif "AI Assistant" in page:  # NEW PAGE
+    elif "AI Assistant" in page:
         page_ai_chat()
     elif "Reports" in page:
         page_reports()
