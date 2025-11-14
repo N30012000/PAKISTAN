@@ -507,13 +507,16 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
-    # Beautiful login page with real PIA logo - FIXED URL
+    # Beautiful login page with text-based PIA logo
     st.markdown(f'''
         <div style="text-align:center;margin:3rem 0 2rem 0;">
             <div style="margin-bottom:1.5rem;animation:float 3s ease-in-out infinite;">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png" 
-                     style="width:100%;max-width:250px;height:auto;"
-                     alt="PIA Logo">
+                <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_LIGHT} 100%);
+                            border-radius:50%;width:120px;height:120px;margin:0 auto;
+                            display:flex;align-items:center;justify-content:center;
+                            box-shadow:0 10px 40px rgba(0,108,53,0.3);">
+                    <span style="color:white;font-size:3.5rem;font-weight:900;letter-spacing:2px;">PIA</span>
+                </div>
             </div>
             <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
                         -webkit-background-clip:text;-webkit-text-fill-color:transparent;
@@ -521,7 +524,7 @@ def check_password():
                 PIA Operations
             </div>
             <div style="color:{config.TEXT_LIGHT};font-size:1.2rem;font-weight:300;">
-                Operational Reporting & Analytics System
+                Pakistan International Airlines - Operational Reporting & Analytics System
             </div>
         </div>
         
@@ -1696,15 +1699,18 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header with live clock in GMT+5 and real PIA logo - FIXED"""
+    """Render application header with live clock in GMT+5 and text-based PIA logo"""
     pkt_time = get_pakistan_time()
     st.markdown(f"""
         <div class="main-header">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
                 <div style="display:flex;align-items:center;gap:1.5rem;flex:1;min-width:300px;">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png" 
-                         style="height:50px;width:auto;filter:brightness(0) invert(1);"
-                         alt="PIA Logo">
+                    <div style="background:rgba(255,255,255,0.2);border-radius:50%;
+                                width:60px;height:60px;display:flex;align-items:center;
+                                justify-content:center;backdrop-filter:blur(10px);
+                                border:2px solid rgba(255,255,255,0.3);">
+                        <span style="color:white;font-size:1.8rem;font-weight:900;letter-spacing:1px;">PIA</span>
+                    </div>
                     <div>
                         <h1 style="margin:0;">PIA Operations Dashboard</h1>
                         <p style="margin:0.3rem 0 0 0;">Real-time operational reporting and analytics for Pakistan International Airlines</p>
@@ -2667,7 +2673,7 @@ def main():
     
     st.set_page_config(
         page_title="PIA Operations",
-        page_icon="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png",
+        page_icon="✈️",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -2680,12 +2686,22 @@ def main():
     render_header()
     
     with st.sidebar:
-        # Real PIA Logo from Wikipedia (FIXED URL)
-        st.markdown("""
-            <div style="text-align:center;padding:1rem;background:white;border-radius:12px;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png" 
-                     style="width:100%;max-width:180px;height:auto;"
-                     alt="PIA Logo">
+        # Text-based PIA Logo 
+        st.markdown(f"""
+            <div style="text-align:center;padding:1.5rem 1rem;background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+                        border-radius:12px;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,108,53,0.2);">
+                <div style="background:rgba(255,255,255,0.2);border-radius:50%;
+                            width:80px;height:80px;margin:0 auto 1rem auto;
+                            display:flex;align-items:center;justify-content:center;
+                            backdrop-filter:blur(10px);border:2px solid rgba(255,255,255,0.3);">
+                    <span style="color:white;font-size:2.2rem;font-weight:900;letter-spacing:2px;">PIA</span>
+                </div>
+                <div style="color:white;font-size:1.1rem;font-weight:600;margin-bottom:0.3rem;">
+                    Operations System
+                </div>
+                <div style="color:rgba(255,255,255,0.8);font-size:0.75rem;font-weight:300;">
+                    Pakistan International Airlines
+                </div>
             </div>
         """, unsafe_allow_html=True)
         
