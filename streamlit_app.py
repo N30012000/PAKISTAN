@@ -507,26 +507,13 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
-    # Beautiful login page with PIA logo
+    # Beautiful login page with real PIA logo
     st.markdown(f'''
         <div style="text-align:center;margin:3rem 0 2rem 0;">
             <div style="margin-bottom:1.5rem;animation:float 3s ease-in-out infinite;">
-                <div style="background:linear-gradient(135deg, #006C35 0%, #004d26 100%);
-                            padding:2.5rem 2rem;border-radius:16px;display:inline-block;
-                            box-shadow:0 8px 30px rgba(0,108,53,0.3);">
-                    <div style="color:white;font-size:3.5rem;font-weight:800;letter-spacing:12px;
-                                margin-bottom:0.5rem;text-shadow:3px 3px 6px rgba(0,0,0,0.3);">
-                        PIA
-                    </div>
-                    <div style="color:white;font-size:0.8rem;opacity:0.9;letter-spacing:3px;">
-                        PAKISTAN INTERNATIONAL AIRLINES
-                    </div>
-                    <div style="width:80px;height:3px;background:white;margin:1rem auto;
-                                opacity:0.6;border-radius:2px;"></div>
-                    <div style="color:white;font-size:0.75rem;opacity:0.8;">
-                        Operations Dashboard
-                    </div>
-                </div>
+                <img src="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png" 
+                     style="width:100%;max-width:250px;height:auto;"
+                     alt="PIA Logo">
             </div>
             <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
                         -webkit-background-clip:text;-webkit-text-fill-color:transparent;
@@ -1709,16 +1696,15 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header with live clock in GMT+5 and PIA logo"""
+    """Render application header with live clock in GMT+5 and real PIA logo"""
     pkt_time = get_pakistan_time()
     st.markdown(f"""
         <div class="main-header">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
                 <div style="display:flex;align-items:center;gap:1.5rem;flex:1;min-width:300px;">
-                    <div style="background:rgba(255,255,255,0.2);padding:0.8rem 1.2rem;border-radius:8px;
-                                border:2px solid rgba(255,255,255,0.3);">
-                        <div style="color:white;font-size:1.3rem;font-weight:800;letter-spacing:4px;">PIA</div>
-                    </div>
+                    <img src="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png" 
+                         style="height:50px;width:auto;filter:brightness(0) invert(1);"
+                         alt="PIA Logo">
                     <div>
                         <h1 style="margin:0;">PIA Operations Dashboard</h1>
                         <p style="margin:0.3rem 0 0 0;">Real-time operational reporting and analytics for Pakistan International Airlines</p>
@@ -2681,6 +2667,7 @@ def main():
     
     st.set_page_config(
         page_title="PIA Operations",
+        page_icon="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -2693,23 +2680,12 @@ def main():
     render_header()
     
     with st.sidebar:
-        # PIA Logo - Simple and effective
+        # Real PIA Logo from Wikipedia
         st.markdown("""
-            <div style="background:linear-gradient(135deg, #006C35 0%, #004d26 100%);
-                        padding:2rem 1rem;border-radius:12px;margin-bottom:1rem;
-                        box-shadow:0 4px 15px rgba(0,108,53,0.3);text-align:center;">
-                <div style="color:white;font-size:2.5rem;font-weight:800;letter-spacing:8px;
-                            margin-bottom:0.3rem;text-shadow:2px 2px 4px rgba(0,0,0,0.3);">
-                    PIA
-                </div>
-                <div style="color:white;font-size:0.7rem;opacity:0.9;letter-spacing:2px;">
-                    PAKISTAN INTERNATIONAL AIRLINES
-                </div>
-                <div style="width:60px;height:3px;background:white;margin:0.8rem auto;
-                            opacity:0.6;border-radius:2px;"></div>
-                <div style="color:white;font-size:0.65rem;opacity:0.8;">
-                    Operations Dashboard
-                </div>
+            <div style="text-align:center;padding:1rem;background:white;border-radius:12px;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+                <img src="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png" 
+                     style="width:100%;max-width:180px;height:auto;"
+                     alt="PIA Logo">
             </div>
         """, unsafe_allow_html=True)
         
