@@ -507,39 +507,10 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
-    # Beautiful login page with PIA-style logo
+    # Beautiful login page
     st.markdown(f'''
         <div style="text-align:center;margin:3rem 0 2rem 0;">
-            <div style="display:inline-block;animation:float 3s ease-in-out infinite;">
-                <div style="background:linear-gradient(135deg, #006C35 0%, #004d26 100%);
-                            padding:3rem 4rem;border-radius:20px;box-shadow:0 10px 40px rgba(0,108,53,0.4);
-                            position:relative;overflow:hidden;">
-                    <!-- Decorative elements -->
-                    <div style="position:absolute;top:-30px;right:-30px;width:150px;height:150px;
-                                background:rgba(255,255,255,0.05);border-radius:50%;"></div>
-                    <div style="position:absolute;bottom:-40px;left:-40px;width:180px;height:180px;
-                                background:rgba(255,255,255,0.05);border-radius:50%;"></div>
-                    
-                    <!-- Logo content -->
-                    <div style="position:relative;z-index:1;">
-                        <div style="color:white;font-size:4.5rem;font-weight:900;letter-spacing:18px;
-                                    margin-bottom:0.5rem;text-shadow:4px 4px 10px rgba(0,0,0,0.4);
-                                    font-family:'Arial Black', sans-serif;">
-                            PIA
-                        </div>
-                        <div style="width:100px;height:3px;background:linear-gradient(90deg, transparent, white, transparent);
-                                    margin:0.8rem auto;opacity:0.7;"></div>
-                        <div style="color:white;font-size:0.8rem;font-weight:600;letter-spacing:3px;
-                                    opacity:0.95;line-height:1.4;">
-                            PAKISTAN<br>INTERNATIONAL AIRLINES
-                        </div>
-                        <div style="color:rgba(255,255,255,0.85);font-size:0.7rem;margin-top:0.8rem;
-                                    font-style:italic;">
-                            Great People to Fly With
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div style="font-size:6rem;margin-bottom:1rem;animation:float 3s ease-in-out infinite;">✈️</div>
             <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
                         -webkit-background-clip:text;-webkit-text-fill-color:transparent;
                         font-size:3.5rem;font-weight:800;margin-bottom:0.5rem;letter-spacing:-1px;">
@@ -1721,21 +1692,14 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header with live clock in GMT+5 and PIA logo"""
+    """Render application header with live clock in GMT+5"""
     pkt_time = get_pakistan_time()
     st.markdown(f"""
         <div class="main-header">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
-                <div style="display:flex;align-items:center;gap:1.5rem;flex:1;min-width:300px;">
-                    <div style="background:rgba(255,255,255,0.15);padding:0.7rem 1.5rem;border-radius:10px;
-                                border:2px solid rgba(255,255,255,0.3);backdrop-filter:blur(10px);">
-                        <div style="color:white;font-size:1.5rem;font-weight:900;letter-spacing:6px;
-                                    font-family:'Arial Black', sans-serif;">PIA</div>
-                    </div>
-                    <div>
-                        <h1 style="margin:0;">PIA Operations Dashboard</h1>
-                        <p style="margin:0.3rem 0 0 0;">Real-time operational reporting and analytics for Pakistan International Airlines</p>
-                    </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+                <div style="flex:1;min-width:300px;">
+                    <h1>✈️ PIA Operations Dashboard</h1>
+                    <p>Real-time operational reporting and analytics for Pakistan International Airlines</p>
                 </div>
                 <div style="text-align:right;min-width:200px;">
                     <div style="background:rgba(255,255,255,0.15);padding:1rem 1.5rem;border-radius:12px;
@@ -2694,6 +2658,7 @@ def main():
     
     st.set_page_config(
         page_title="PIA Operations",
+        page_icon="✈️",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -2706,36 +2671,7 @@ def main():
     render_header()
     
     with st.sidebar:
-        # Beautiful PIA-style logo (pure CSS - always works!)
-        st.markdown("""
-            <div style="text-align:center;padding:1.5rem;background:linear-gradient(135deg, #006C35 0%, #004d26 100%);
-                        border-radius:12px;margin-bottom:1rem;box-shadow:0 6px 20px rgba(0,108,53,0.4);position:relative;overflow:hidden;">
-                <!-- Decorative background pattern -->
-                <div style="position:absolute;top:-20px;right:-20px;width:100px;height:100px;
-                            background:rgba(255,255,255,0.05);border-radius:50%;"></div>
-                <div style="position:absolute;bottom:-30px;left:-30px;width:120px;height:120px;
-                            background:rgba(255,255,255,0.05);border-radius:50%;"></div>
-                
-                <!-- Main PIA text -->
-                <div style="position:relative;z-index:1;">
-                    <div style="color:white;font-size:3rem;font-weight:900;letter-spacing:10px;
-                                margin-bottom:0.3rem;text-shadow:3px 3px 8px rgba(0,0,0,0.3);
-                                font-family:'Arial Black', sans-serif;">
-                        PIA
-                    </div>
-                    <div style="width:80px;height:2px;background:linear-gradient(90deg, transparent, white, transparent);
-                                margin:0.5rem auto;opacity:0.7;"></div>
-                    <div style="color:white;font-size:0.65rem;font-weight:600;letter-spacing:2px;
-                                opacity:0.95;line-height:1.3;margin-top:0.5rem;">
-                        PAKISTAN<br>INTERNATIONAL AIRLINES
-                    </div>
-                    <div style="color:rgba(255,255,255,0.8);font-size:0.55rem;margin-top:0.6rem;
-                                font-style:italic;">
-                        Great People to Fly With
-                    </div>
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
+        st.image("https://via.placeholder.com/200x80/006C35/FFFFFF?text=PIA", use_container_width=True)
         
         # Live Clock - GMT+5 (Pakistan Standard Time)
         pkt_time = get_pakistan_time()
@@ -2744,7 +2680,7 @@ def main():
                         padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
                         box-shadow:0 4px 15px rgba(0,108,53,0.2);">
                 <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;opacity:0.9;">
-                    ⏰ PAKISTAN TIME (GMT+5)
+                    🕐 PAKISTAN TIME (GMT+5)
                 </div>
                 <div style="color:white;font-size:1.8rem;font-weight:800;letter-spacing:1px;">
                     {pkt_time.strftime('%H:%M:%S')}
