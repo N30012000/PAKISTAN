@@ -390,9 +390,9 @@ def get_database():
 
 db = get_database()
 
-# ============================================================================
+# ==============================================================================
 # GEMINI AI HELPER
-# ============================================================================
+# ==============================================================================
 
 class GeminiAI:
     """Gemini AI integration for chat and analysis"""
@@ -507,11 +507,11 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
-    # Beautiful login page with real PIA logo
+    # Beautiful login page with real PIA logo - FIXED URL
     st.markdown(f'''
         <div style="text-align:center;margin:3rem 0 2rem 0;">
             <div style="margin-bottom:1.5rem;animation:float 3s ease-in-out infinite;">
-                <img src="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png" 
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png" 
                      style="width:100%;max-width:250px;height:auto;"
                      alt="PIA Logo">
             </div>
@@ -1696,13 +1696,13 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header with live clock in GMT+5 and real PIA logo"""
+    """Render application header with live clock in GMT+5 and real PIA logo - FIXED"""
     pkt_time = get_pakistan_time()
     st.markdown(f"""
         <div class="main-header">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
                 <div style="display:flex;align-items:center;gap:1.5rem;flex:1;min-width:300px;">
-                    <img src="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png" 
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png" 
                          style="height:50px;width:auto;filter:brightness(0) invert(1);"
                          alt="PIA Logo">
                     <div>
@@ -2667,7 +2667,7 @@ def main():
     
     st.set_page_config(
         page_title="PIA Operations",
-        page_icon="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png",
+        page_icon="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png",
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -2680,10 +2680,10 @@ def main():
     render_header()
     
     with st.sidebar:
-        # Real PIA Logo from Wikipedia
+        # Real PIA Logo from Wikipedia (FIXED URL)
         st.markdown("""
             <div style="text-align:center;padding:1rem;background:white;border-radius:12px;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);">
-                <img src="https://upload.wikimedia.org/wikipedia/en/1/17/PIA_new_logo.png" 
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Pakistan_International_Airlines_Logo.svg/500px-Pakistan_International_Airlines_Logo.svg.png" 
                      style="width:100%;max-width:180px;height:auto;"
                      alt="PIA Logo">
             </div>
@@ -2813,7 +2813,7 @@ def main():
         
         st.subheader("System Status")
         st.caption(f"Database: {db.db_type.upper()}")
-        st.caption(f"Mode: {config.APP_MODE.upper()}")
+        st.caption(f"Mode: {config.APP_MODE.UPPER()}")
         
         # AI Status
         if config.GEMINI_API_KEY:
