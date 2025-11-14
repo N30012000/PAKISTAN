@@ -507,14 +507,30 @@ def check_password():
     if st.session_state.authenticated:
         return True
     
-    # Beautiful login page with PIA logo
+    # Beautiful login page with PIA logo (SVG)
     st.markdown(f'''
         <div style="text-align:center;margin:3rem 0 2rem 0;">
-            <div style="margin-bottom:1.5rem;">
-                <img src="https://www.piac.com.pk/assets/images/pia-logo.png" 
-                     style="width:200px;height:auto;animation:float 3s ease-in-out infinite;"
-                     onerror="this.style.display='none';"
-                     alt="PIA Logo">
+            <div style="margin-bottom:1.5rem;animation:float 3s ease-in-out infinite;">
+                <svg width="200" height="90" viewBox="0 0 200 90" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Green background with rounded corners -->
+                    <rect width="200" height="90" fill="#006C35" rx="12"/>
+                    
+                    <!-- Decorative elements -->
+                    <circle cx="30" cy="25" r="15" fill="white" opacity="0.1"/>
+                    <circle cx="170" cy="65" r="20" fill="white" opacity="0.1"/>
+                    
+                    <!-- PIA Text -->
+                    <text x="100" y="50" font-family="Arial, sans-serif" font-size="38" font-weight="bold" 
+                          fill="white" text-anchor="middle" letter-spacing="6">PIA</text>
+                    
+                    <!-- Subtitle -->
+                    <text x="100" y="72" font-family="Arial, sans-serif" font-size="10" 
+                          fill="white" text-anchor="middle" opacity="0.9">PAKISTAN INTERNATIONAL AIRLINES</text>
+                    
+                    <!-- Decorative lines -->
+                    <line x1="30" y1="55" x2="65" y2="55" stroke="white" stroke-width="2.5" opacity="0.6"/>
+                    <line x1="135" y1="55" x2="170" y2="55" stroke="white" stroke-width="2.5" opacity="0.6"/>
+                </svg>
             </div>
             <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
                         -webkit-background-clip:text;-webkit-text-fill-color:transparent;
@@ -1697,16 +1713,20 @@ def apply_custom_css():
     """, unsafe_allow_html=True)
 
 def render_header():
-    """Render application header with live clock in GMT+5 and PIA logo"""
+    """Render application header with live clock in GMT+5 and PIA logo (SVG)"""
     pkt_time = get_pakistan_time()
     st.markdown(f"""
         <div class="main-header">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;">
                 <div style="display:flex;align-items:center;gap:1.5rem;flex:1;min-width:300px;">
-                    <img src="https://www.piac.com.pk/assets/images/pia-logo-white.png" 
-                         style="height:60px;width:auto;filter:brightness(0) invert(1);"
-                         onerror="this.style.display='none';"
-                         alt="PIA Logo">
+                    <svg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+                        <!-- White circular background -->
+                        <circle cx="30" cy="30" r="28" fill="white" opacity="0.2"/>
+                        
+                        <!-- PIA Text -->
+                        <text x="30" y="38" font-family="Arial, sans-serif" font-size="20" font-weight="bold" 
+                              fill="white" text-anchor="middle" letter-spacing="2">PIA</text>
+                    </svg>
                     <div>
                         <h1 style="margin:0;">PIA Operations Dashboard</h1>
                         <p style="margin:0.3rem 0 0 0;">Real-time operational reporting and analytics for Pakistan International Airlines</p>
@@ -2669,7 +2689,6 @@ def main():
     
     st.set_page_config(
         page_title="PIA Operations",
-        page_icon="https://www.piac.com.pk/favicon.ico",  # Official PIA favicon
         layout="wide",
         initial_sidebar_state="expanded"
     )
@@ -2682,13 +2701,29 @@ def main():
     render_header()
     
     with st.sidebar:
-        # PIA Logo
+        # PIA Logo - SVG (always works!)
         st.markdown("""
-            <div style="text-align:center;padding:1rem 0;background:white;border-radius:12px;margin-bottom:1rem;box-shadow:0 2px 10px rgba(0,0,0,0.1);">
-                <img src="https://www.piac.com.pk/assets/images/pia-logo.png" 
-                     style="width:180px;height:auto;"
-                     onerror="this.onerror=null; this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%2280%22><rect fill=%22%23006C35%22 width=%22200%22 height=%2280%22/><text x=%2250%25%22 y=%2250%25%22 font-size=%2224%22 fill=%22white%22 text-anchor=%22middle%22 dy=%22.3em%22 font-weight=%22bold%22>PIA</text></svg>';"
-                     alt="PIA Logo">
+            <div style="text-align:center;padding:1.5rem 1rem;background:white;border-radius:12px;margin-bottom:1rem;box-shadow:0 4px 15px rgba(0,0,0,0.1);">
+                <svg width="180" height="80" viewBox="0 0 180 80" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Green background -->
+                    <rect width="180" height="80" fill="#006C35" rx="8"/>
+                    
+                    <!-- White decorative elements -->
+                    <path d="M 20 15 L 35 25 L 20 35 Z" fill="white" opacity="0.3"/>
+                    <path d="M 160 15 L 145 25 L 160 35 Z" fill="white" opacity="0.3"/>
+                    
+                    <!-- PIA Text -->
+                    <text x="90" y="45" font-family="Arial, sans-serif" font-size="32" font-weight="bold" 
+                          fill="white" text-anchor="middle" letter-spacing="4">PIA</text>
+                    
+                    <!-- Subtitle -->
+                    <text x="90" y="62" font-family="Arial, sans-serif" font-size="9" 
+                          fill="white" text-anchor="middle" opacity="0.9">PAKISTAN INTERNATIONAL AIRLINES</text>
+                    
+                    <!-- Decorative line -->
+                    <line x1="40" y1="50" x2="70" y2="50" stroke="white" stroke-width="2" opacity="0.5"/>
+                    <line x1="110" y1="50" x2="140" y2="50" stroke="white" stroke-width="2" opacity="0.5"/>
+                </svg>
             </div>
         """, unsafe_allow_html=True)
         
