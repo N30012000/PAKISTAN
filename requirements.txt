@@ -1,33 +1,12 @@
-# Core Streamlit
 streamlit>=1.28.0
-
-# Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
-
-# Visualization
 plotly>=5.17.0
-
-# Database
 supabase>=2.0.0
 sqlalchemy>=2.0.0
-
-# API Integrations
+st-supabase-connection
 requests>=2.31.0
-openai>=1.0.0
-
-# PDF Generation
+google-generativeai
 reportlab>=4.0.0
-
-# Excel Support
 openpyxl>=3.1.0
-
-# Time Series (Optional - for ARIMA/Prophet)
-statsmodels>=0.14.0
-# prophet>=1.1.0  # Uncomment if needed, but has many dependencies
-
-# Data Validation
-pydantic>=2.0.0
-
-# Environment Variables
 python-dotenv>=1.0.0
