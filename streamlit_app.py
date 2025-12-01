@@ -5,7 +5,6 @@ ENHANCED WITH COMPLETE AUTHENTICATION SYSTEM + GEMINI AI + GENERIC CHAT + BEAUTI
 """
 
 import streamlit as st
-from st_supabase_connection import SupabaseConnection
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -392,20 +391,6 @@ def get_database():
 db = get_database()
 
 # ============================================================================
-# SUPABASE AUTH CONNECTION
-# ============================================================================
-
-@st.cache_resource
-def get_supabase_client():
-    """Initialize Supabase client for OAuth authentication"""
-    return st.connection(
-        name="supabase",
-        type=SupabaseConnection,
-        url=config.SUPABASE_URL,
-        key=config.SUPABASE_KEY
-    )
-
-# ============================================================================
 # GEMINI AI HELPER
 # ============================================================================
 
@@ -508,59 +493,17 @@ class GroqAI:
             return f"❌ Error communicating with Groq: {str(e)}"
 
 # ============================================================================
-# AUTHENTICATION - GOOGLE OAUTH
+# AUTHENTICATION (SAME AS BEFORE)
 # ============================================================================
 
-def handle_oauth_callback():
-    """Handle the OAuth callback after Google redirects back"""
-    # Check if we have a code in the URL (OAuth callback)
-    query_params = st.query_params
-
-    if "code" in query_params:
-        try:
-            # Get the Supabase client
-            supabase = get_supabase_client()
-
-            # Exchange the code for a session
-            code = query_params["code"]
-            session = supabase.auth.exchange_code_for_session(code)
-
-            if session and session.user:
-                # Store user info in session state
-                st.session_state.authenticated = True
-                st.session_state.current_user = {
-                    'id': session.user.id,
-                    'email': session.user.email,
-                    'full_name': session.user.user_metadata.get('full_name', session.user.email.split('@')[0]),
-                    'username': session.user.email.split('@')[0],
-                    'role': 'user',
-                    'avatar_url': session.user.user_metadata.get('avatar_url', '')
-                }
-
-                # Clear the query params to clean up the URL
-                st.query_params.clear()
-
-                # Rerun to show the authenticated app
-                st.rerun()
-        except Exception as e:
-            logger.error(f"OAuth callback error: {e}")
-            st.error(f"Authentication failed: {str(e)}")
-            # Clear the failed code from URL
-            st.query_params.clear()
-
 def check_password():
-    """Google OAuth authentication using st-supabase-connection"""
-
-    # Initialize session state
+    """Enhanced authentication with full Login/Signup/Reset functionality"""
+    
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     if 'current_user' not in st.session_state:
         st.session_state.current_user = None
-
-    # Handle OAuth callback FIRST (before showing any UI)
-    handle_oauth_callback()
-
-    # If already authenticated, return True
+    
     if st.session_state.authenticated:
         return True
     
@@ -577,7 +520,7 @@ def check_password():
                 Operational Reporting & Analytics System
             </div>
         </div>
-
+        
         <style>
         @keyframes float {{
             0%, 100% {{ transform: translateY(0px); }}
@@ -585,73 +528,317 @@ def check_password():
         }}
         </style>
     ''', unsafe_allow_html=True)
-
-    # Main login container
-    st.markdown("### Welcome Back")
-    st.markdown("Please sign in to continue")
-    st.markdown("---")
-
-    # Get redirect URL - use environment variable or default to localhost
-    redirect_url = os.getenv("STREAMLIT_APP_URL", "http://localhost:8501")
-
-    # Google OAuth Login Button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button(
-            "🔐 Sign in with Google",
-            use_container_width=True,
-            type="primary",
-            key="google_login"
-        ):
-            try:
-                # Get the Supabase client
-                supabase = get_supabase_client()
-
-                # Initiate Google OAuth flow
-                auth_response = supabase.auth.sign_in_with_oauth({
-                    "provider": "google",
-                    "options": {
-                        "redirect_to": redirect_url
-                    }
-                })
-
-                # Display the OAuth URL for the user to click
-                if auth_response and hasattr(auth_response, 'url'):
-                    st.success("Redirecting to Google...")
-                    st.markdown(f"### [Click here to sign in with Google]({auth_response.url})")
-                    st.info("You will be redirected back to this app after signing in.")
-
-                    # Automatically redirect using JavaScript
-                    st.markdown(f"""
-                        <meta http-equiv="refresh" content="0; url={auth_response.url}">
-                    """, unsafe_allow_html=True)
+    
+    tab1, tab2, tab3 = st.tabs(["🔐 Login", "📝 Sign Up", "🔑 Reset Password"])
+    
+    with tab1:
+        st.markdown("### Welcome Back")
+        st.markdown("---")
+        
+        with st.form("login_form", clear_on_submit=False):
+            username = st.text_input("👤 Username", placeholder="Enter your username", key="login_username")
+            password = st.text_input("🔒 Password", type="password", placeholder="Enter your password", key="login_password")
+            remember = st.checkbox("Remember me for 30 days")
+            
+            col1, col2 = st.columns([1, 1])
+            with col1:
+                submit = st.form_submit_button("🚀 Login", use_container_width=True, type="primary")
+            with col2:
+                demo = st.form_submit_button("🎮 Demo Mode", use_container_width=True)
+            
+            if demo:
+                st.session_state.authenticated = True
+                st.session_state.current_user = {
+                    'username': 'demo',
+                    'email': 'demo@pia.com',
+                    'full_name': 'Demo User',
+                    'role': 'admin'
+                }
+                st.success("Entering demo mode...")
+                time.sleep(0.5)
+                st.rerun()
+            
+            if submit:
+                if not username or not password:
+                    st.error("⚠️ Please enter both username and password")
                 else:
-                    st.error("Failed to initiate OAuth flow. Please try again.")
-
-            except Exception as e:
-                logger.error(f"OAuth initiation error: {e}")
-                st.error(f"Login error: {str(e)}")
-                st.info("Make sure you have configured Google OAuth in your Supabase dashboard.")
-
-        # Demo mode button
+                    try:
+                        password_hash = hashlib.sha256(password.encode()).hexdigest()
+                        
+                        if db.db_type == "sqlite":
+                            cursor = db.connection.cursor()
+                            cursor.execute(
+                                "SELECT * FROM users WHERE username = ? AND password_hash = ?",
+                                (username, password_hash)
+                            )
+                            result = cursor.fetchone()
+                            
+                            if result:
+                                columns = [description[0] for description in cursor.description]
+                                user = dict(zip(columns, result))
+                                
+                                cursor.execute(
+                                    "UPDATE users SET last_login = ? WHERE id = ?",
+                                    (datetime.now().isoformat(), user['id'])
+                                )
+                                db.connection.commit()
+                                
+                                st.session_state.authenticated = True
+                                st.session_state.current_user = {
+                                    'id': user['id'],
+                                    'username': user['username'],
+                                    'email': user['email'],
+                                    'full_name': user['full_name'],
+                                    'role': user['role']
+                                }
+                                
+                                st.success(f"✅ Welcome back, {user['full_name']}!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid username or password")
+                        
+                        elif db.db_type == "supabase":
+                            response = db.connection.table('users').select("*").eq('username', username).eq('password_hash', password_hash).execute()
+                            
+                            if response.data:
+                                user = response.data[0]
+                                db.connection.table('users').update({'last_login': datetime.now().isoformat()}).eq('id', user['id']).execute()
+                                
+                                st.session_state.authenticated = True
+                                st.session_state.current_user = {
+                                    'id': user['id'],
+                                    'username': user['username'],
+                                    'email': user['email'],
+                                    'full_name': user['full_name'],
+                                    'role': user['role']
+                                }
+                                st.success(f"✅ Welcome back, {user['full_name']}!")
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid username or password")
+                                
+                    except Exception as e:
+                        logger.error(f"Login error: {e}")
+                        st.error(f"⚠️ Login error: {str(e)}")
+        
         st.divider()
-        if st.button("🎮 Demo Mode", use_container_width=True, key="demo_mode"):
-            st.session_state.authenticated = True
-            st.session_state.current_user = {
-                'id': 'demo',
-                'username': 'demo',
-                'email': 'demo@pia.com',
-                'full_name': 'Demo User',
-                'role': 'admin',
-                'avatar_url': ''
-            }
-            st.success("Entering demo mode...")
-            time.sleep(0.5)
-            st.rerun()
-
-    st.divider()
-    st.caption("Secure authentication powered by Supabase OAuth")
-
+        st.info("💡 **Default credentials:** username: `admin` | password: `admin123`")
+        st.caption("Or create a new account in the Sign Up tab")
+    
+    with tab2:
+        st.markdown("### Create Your Account")
+        st.markdown("---")
+        
+        with st.form("signup_form", clear_on_submit=True):
+            full_name = st.text_input("👤 Full Name", placeholder="John Doe", key="signup_name")
+            email = st.text_input("📧 Email Address", placeholder="john.doe@pia.com", key="signup_email")
+            username = st.text_input("👤 Username", placeholder="johndoe (min 3 characters)", key="signup_username")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                password = st.text_input("🔒 Password", type="password", placeholder="Min 6 characters", key="signup_password")
+            with col2:
+                password_confirm = st.text_input("🔒 Confirm Password", type="password", key="signup_password_confirm")
+            
+            terms = st.checkbox("I agree to the Terms of Service and Privacy Policy")
+            
+            submit = st.form_submit_button("📝 Create Account", use_container_width=True, type="primary")
+            
+            if submit:
+                errors = []
+                if not all([full_name, email, username, password, password_confirm]):
+                    errors.append("Please fill in all fields")
+                if password != password_confirm:
+                    errors.append("Passwords do not match")
+                if len(username) < 3:
+                    errors.append("Username must be at least 3 characters")
+                if len(password) < 6:
+                    errors.append("Password must be at least 6 characters")
+                if not terms:
+                    errors.append("Please accept the Terms of Service")
+                if '@' not in email:
+                    errors.append("Please enter a valid email address")
+                
+                if errors:
+                    for error in errors:
+                        st.error(f"❌ {error}")
+                else:
+                    try:
+                        password_hash = hashlib.sha256(password.encode()).hexdigest()
+                        
+                        if db.db_type == "sqlite":
+                            cursor = db.connection.cursor()
+                            cursor.execute("""
+                                INSERT INTO users (username, email, password_hash, full_name, role, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?)
+                            """, (username, email, password_hash, full_name, 'user', datetime.now().isoformat()))
+                            db.connection.commit()
+                            
+                            st.success("✅ Account created successfully!")
+                            st.info("👉 You can now login with your credentials in the Login tab")
+                            st.balloons()
+                        
+                        elif db.db_type == "supabase":
+                            db.connection.table('users').insert({
+                                'username': username,
+                                'email': email,
+                                'password_hash': password_hash,
+                                'full_name': full_name,
+                                'role': 'user',
+                                'created_at': datetime.now().isoformat()
+                            }).execute()
+                            
+                            st.success("✅ Account created successfully!")
+                            st.info("👉 You can now login with your credentials in the Login tab")
+                            st.balloons()
+                            
+                    except Exception as e:
+                        error_msg = str(e).lower()
+                        if "unique" in error_msg or "duplicate" in error_msg:
+                            if "username" in error_msg:
+                                st.error("❌ Username already exists. Please choose a different one.")
+                            elif "email" in error_msg:
+                                st.error("❌ Email already registered. Please use a different email or login.")
+                        else:
+                            st.error(f"❌ Registration error: {str(e)}")
+    
+    with tab3:
+        st.markdown("### Reset Your Password")
+        st.markdown("---")
+        
+        reset_method = st.radio(
+            "Choose reset method:",
+            ["1️⃣ Generate Reset Token", "2️⃣ Reset with Token"],
+            horizontal=True
+        )
+        
+        if reset_method == "1️⃣ Generate Reset Token":
+            with st.form("request_token_form"):
+                email = st.text_input("📧 Email Address", placeholder="Enter your registered email")
+                submit = st.form_submit_button("📨 Generate Reset Token", use_container_width=True, type="primary")
+                
+                if submit:
+                    if not email:
+                        st.error("❌ Please enter your email address")
+                    else:
+                        try:
+                            if db.db_type == "sqlite":
+                                cursor = db.connection.cursor()
+                                cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
+                                result = cursor.fetchone()
+                                
+                                if result:
+                                    import secrets
+                                    token = secrets.token_urlsafe(32)
+                                    expiry = (datetime.now() + timedelta(hours=1)).isoformat()
+                                    
+                                    cursor.execute(
+                                        "UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE email = ?",
+                                        (token, expiry, email)
+                                    )
+                                    db.connection.commit()
+                                    
+                                    st.success("✅ Reset token generated successfully!")
+                                    st.code(token, language=None)
+                                    st.warning("⚠️ **Important:** Copy this token and use it in the 'Reset with Token' section. Token expires in 1 hour.")
+                                else:
+                                    st.error("❌ Email not found in our system")
+                            
+                            elif db.db_type == "supabase":
+                                response = db.connection.table('users').select("id").eq('email', email).execute()
+                                if response.data:
+                                    import secrets
+                                    token = secrets.token_urlsafe(32)
+                                    expiry = (datetime.now() + timedelta(hours=1)).isoformat()
+                                    
+                                    db.connection.table('users').update({
+                                        'reset_token': token,
+                                        'reset_token_expiry': expiry
+                                    }).eq('email', email).execute()
+                                    
+                                    st.success("✅ Reset token generated successfully!")
+                                    st.code(token, language=None)
+                                    st.warning("⚠️ **Important:** Copy this token and use it in the 'Reset with Token' section. Token expires in 1 hour.")
+                                else:
+                                    st.error("❌ Email not found in our system")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+        
+        else:
+            with st.form("reset_password_form"):
+                token = st.text_input("🔑 Reset Token", placeholder="Paste your reset token here")
+                new_password = st.text_input("🔒 New Password", type="password", placeholder="Min 6 characters")
+                confirm_password = st.text_input("🔒 Confirm New Password", type="password")
+                
+                submit = st.form_submit_button("🔄 Reset Password", use_container_width=True, type="primary")
+                
+                if submit:
+                    if not all([token, new_password, confirm_password]):
+                        st.error("❌ Please fill in all fields")
+                    elif new_password != confirm_password:
+                        st.error("❌ Passwords do not match")
+                    elif len(new_password) < 6:
+                        st.error("❌ Password must be at least 6 characters")
+                    else:
+                        try:
+                            if db.db_type == "sqlite":
+                                cursor = db.connection.cursor()
+                                cursor.execute(
+                                    "SELECT * FROM users WHERE reset_token = ?",
+                                    (token,)
+                                )
+                                result = cursor.fetchone()
+                                
+                                if result:
+                                    columns = [description[0] for description in cursor.description]
+                                    user = dict(zip(columns, result))
+                                    
+                                    expiry = datetime.fromisoformat(user['reset_token_expiry'])
+                                    if datetime.now() > expiry:
+                                        st.error("❌ Token has expired. Please generate a new one.")
+                                    else:
+                                        password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+                                        cursor.execute("""
+                                            UPDATE users 
+                                            SET password_hash = ?, reset_token = NULL, reset_token_expiry = NULL
+                                            WHERE id = ?
+                                        """, (password_hash, user['id']))
+                                        db.connection.commit()
+                                        
+                                        st.success("✅ Password reset successfully!")
+                                        st.info("👉 You can now login with your new password")
+                                        st.balloons()
+                                else:
+                                    st.error("❌ Invalid token")
+                            
+                            elif db.db_type == "supabase":
+                                response = db.connection.table('users').select("*").eq('reset_token', token).execute()
+                                if response.data:
+                                    user = response.data[0]
+                                    expiry = datetime.fromisoformat(user['reset_token_expiry'])
+                                    
+                                    if datetime.now() > expiry:
+                                        st.error("❌ Token has expired. Please generate a new one.")
+                                    else:
+                                        password_hash = hashlib.sha256(new_password.encode()).hexdigest()
+                                        db.connection.table('users').update({
+                                            'password_hash': password_hash,
+                                            'reset_token': None,
+                                            'reset_token_expiry': None
+                                        }).eq('id', user['id']).execute()
+                                        
+                                        st.success("✅ Password reset successfully!")
+                                        st.info("👉 You can now login with your new password")
+                                        st.balloons()
+                                else:
+                                    st.error("❌ Invalid token")
+                                    
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+    
     return False
 
 # ============================================================================
@@ -2597,21 +2784,11 @@ def main():
             user = st.session_state.current_user
             st.markdown(f"### 👤 {user['full_name']}")
             st.caption(f"@{user['username']} | {user['role'].title()}")
-
+            
             if st.button("🚪 Logout", use_container_width=True, type="secondary"):
-                try:
-                    # Sign out from Supabase
-                    supabase = get_supabase_client()
-                    supabase.auth.sign_out()
-                except Exception as e:
-                    logger.error(f"Logout error: {e}")
-
-                # Clear session state
                 st.session_state.authenticated = False
                 st.session_state.current_user = None
-                if 'chat_history' in st.session_state:
-                    st.session_state.chat_history = []
-
+                st.session_state.chat_history = []
                 st.success("Logged out successfully!")
                 time.sleep(1)
                 st.rerun()
