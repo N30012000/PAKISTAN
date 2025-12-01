@@ -10,6 +10,7 @@ plotly>=5.17.0
 
 # Database
 supabase>=2.0.0
+st-supabase-connection>=0.0.1
 sqlalchemy>=2.0.0
 
 # API Integrations
