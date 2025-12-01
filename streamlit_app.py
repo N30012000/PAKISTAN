@@ -536,8 +536,9 @@ def check_password():
         # THE LOGIN BUTTON
         if st.button("🚀 Log in with Google Account", type="primary", use_container_width=True):
             try:
-                # Generate the Google Login URL
-                callback_url = str(auth_conn.client.auth._get_url())
+                # --- THIS IS THE FIX ---
+                # Retrieve the app URL from secrets, defaulting to localhost if not found
+                callback_url = st.secrets.get("STREAMLIT_APP_URL", "http://localhost:8501")
                 
                 data = auth_conn.auth.sign_in_with_oauth({
                     "provider": "google",
