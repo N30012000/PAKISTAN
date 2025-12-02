@@ -1,12 +1,31 @@
+# Core Streamlit
 streamlit>=1.28.0
+
+# Data Processing
 pandas>=2.0.0
 numpy>=1.24.0
+
+# Visualization
 plotly>=5.17.0
+
+# Database - Supabase
 supabase>=2.0.0
 sqlalchemy>=2.0.0
-st-supabase-connection
+
+# FIXED: Authentication - Use streamlit-supabase-auth instead of st-supabase-connection
+# This package works properly with Google OAuth on Streamlit Cloud
+streamlit-supabase-auth>=0.0.5
+
+# HTTP Requests
 requests>=2.31.0
+
+# AI Integration - BOTH Gemini AND Groq
 google-generativeai
+groq
+
+# Report Generation
 reportlab>=4.0.0
 openpyxl>=3.1.0
+
+# Environment Variables
 python-dotenv>=1.0.0
