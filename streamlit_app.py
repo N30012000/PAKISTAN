@@ -1,7 +1,7 @@
 """
 PIA Operations - Production-Ready Airline Operational Reporting System
 A scalable, secure, and comprehensive operations management system for Pakistan International Airlines
-ENHANCED WITH GOOGLE OAUTH + GEMINI AI + GENERIC CHAT + BEAUTIFUL UI
+FIXED VERSION WITH WORKING GOOGLE OAUTH + GEMINI AI + GROQ AI + GENERIC CHAT + BEAUTIFUL UI
 """
 
 import streamlit as st
@@ -17,10 +17,6 @@ import logging
 from io import BytesIO
 import base64
 import time
-
-# --- NEW IMPORTS FOR GOOGLE AUTH ---
-from st_supabase_connection import SupabaseConnection
-from supabase import create_client, Client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +41,7 @@ class Config:
     OPENSKY_PASSWORD = os.getenv("OPENSKY_PASSWORD", st.secrets.get("OPENSKY_PASSWORD", "") if hasattr(st, 'secrets') else "")
     
     # Timezone - Pakistan Standard Time (GMT+5)
-    TIMEZONE_OFFSET = 5  # GMT+5)
+    TIMEZONE_OFFSET = 5  # GMT+5
     
     # App Settings
     APP_MODE = os.getenv("APP_MODE", "production") 
@@ -342,7 +338,6 @@ class DatabaseManager:
         """Clear all records from a table"""
         try:
             if self.db_type == "supabase":
-                # Supabase doesn't have a direct truncate, so delete all
                 self.connection.table(table).delete().neq('id', 0).execute()
             elif self.db_type == "sqlite":
                 cursor = self.connection.cursor()
@@ -429,17 +424,17 @@ Be concise but thorough. Use bullet points for clarity."""
             return f"❌ Analysis error: {str(e)}"
 
 # ============================================================================
-# GROQ AI HELPER (ALTERNATIVE)
+# GROQ AI HELPER
 # ============================================================================
 
 class GroqAI:
-    """Groq AI integration as alternative to Gemini"""
+    """Groq AI integration for fast inference"""
     
     @staticmethod
     def chat(message: str, system_prompt: str = "") -> str:
         """Send message to Groq and get response"""
         if not config.GROQ_API_KEY:
-            return "❌ Groq API key not configured."
+            return "❌ Groq API key not configured. Please add GROQ_API_KEY to your secrets."
         
         try:
             from groq import Groq
@@ -463,112 +458,123 @@ class GroqAI:
         except Exception as e:
             logger.error(f"Groq API error: {e}")
             return f"❌ Error communicating with Groq: {str(e)}"
+    
+    @staticmethod
+    def analyze_data(df: pd.DataFrame, question: str) -> str:
+        """Use Groq to analyze data and answer questions"""
+        if not config.GROQ_API_KEY:
+            return "❌ Groq API key not configured."
+        
+        try:
+            from groq import Groq
+            
+            # Prepare data summary
+            data_summary = f"""
+Dataset Information:
+- Shape: {df.shape[0]} rows, {df.shape[1]} columns
+- Columns: {', '.join(df.columns)}
+
+Sample Data (first 5 rows):
+{df.head().to_string()}
+
+Statistics:
+{df.describe().to_string()}
+"""
+            
+            system_prompt = """You are an AI data analyst for Pakistan International Airlines. 
+Analyze the provided data and answer the user's question with specific insights, patterns, and recommendations.
+Be concise but thorough. Use bullet points for clarity."""
+            
+            client = Groq(api_key=config.GROQ_API_KEY)
+            
+            response = client.chat.completions.create(
+                model="mixtral-8x7b-32768",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Data:\n{data_summary}\n\nQuestion: {question}"}
+                ],
+                temperature=0.7,
+                max_tokens=2048
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            logger.error(f"Groq analysis error: {e}")
+            return f"❌ Analysis error: {str(e)}"
 
 # ============================================================================
-# AUTHENTICATION (REPLACED WITH GOOGLE OAUTH)
+# FIXED AUTHENTICATION - Using streamlit-supabase-auth
 # ============================================================================
 
 def check_password():
-    """Google OAuth Authentication integrated with existing Session State"""
+    """
+    FIXED Google OAuth Authentication using streamlit-supabase-auth
+    This method works properly on Streamlit Cloud!
+    """
     
-    # Initialize the Supabase Connection specifically for Auth
-    # Note: We use the Streamlit connection helper for easier OAuth handling
-    try:
-        auth_conn = st.connection("supabase", type=SupabaseConnection)
-    except Exception as e:
-        st.error("⚠️ Supabase Connection Error. Check .streamlit/secrets.toml")
-        st.stop()
-
     # 1. Check if user is already authenticated in Session State
     if st.session_state.get('authenticated', False):
         return True
-
-    # 2. Check for OAuth Callback (User returning from Google)
-    query_params = st.query_params
-    if "code" in query_params:
-        try:
-            # Exchange the auth code for a session
-            session = auth_conn.auth.exchange_code_for_session(query_params["code"])
-            
-            # POPULATE SESSION STATE TO MATCH YOUR APP'S STRUCTURE
-            st.session_state.authenticated = True
-            st.session_state.current_user = {
-                'id': session.user.id,
-                'email': session.user.email,
-                'username': session.user.email.split('@')[0], # Use email prefix as username
-                'full_name': session.user.user_metadata.get('full_name', session.user.email),
-                'role': 'admin' if 'admin' in session.user.email else 'user' # Simple role logic
-            }
-            
-            # Clear the URL code to prevent re-running auth logic
-            st.query_params.clear()
-            st.rerun()
-            
-        except Exception as e:
-            st.error(f"Login failed: {str(e)}")
-            st.error("Please try clicking the login button again.")
-            
-    # 3. If not logged in, Render the Login Page
-    st.markdown(f'''
-        <div style="text-align:center;margin:3rem 0 2rem 0;">
-            <div style="font-size:6rem;margin-bottom:1rem;animation:float 3s ease-in-out infinite;">✈️</div>
-            <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
-                        -webkit-background-clip:text;-webkit-text-fill-color:transparent;
-                        font-size:3.5rem;font-weight:800;margin-bottom:0.5rem;letter-spacing:-1px;">
-                PIA Operations
-            </div>
-            <div style="color:{config.TEXT_LIGHT};font-size:1.2rem;font-weight:300;">
-                Secure Enterprise Login
-            </div>
-        </div>
-        <style>
-        @keyframes float {{
-            0%, 100% {{ transform: translateY(0px); }}
-            50% {{ transform: translateY(-20px); }}
-        }}
-        </style>
-    ''', unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.info("🔒 Access is restricted to authorized personnel.")
+    
+    try:
+        from streamlit_supabase_auth import login_form, logout_button
         
-        # THE LOGIN BUTTON
-        if st.button("🚀 Log in with Google Account", type="primary", use_container_width=True):
-            try:
-                # --- THIS IS THE FIX ---
-                # Retrieve the app URL from secrets, defaulting to localhost if not found
-                callback_url = st.secrets.get("STREAMLIT_APP_URL", "http://localhost:8501")
+        # Show login page header
+        st.markdown(f'''
+            <div style="text-align:center;margin:3rem 0 2rem 0;">
+                <div style="font-size:6rem;margin-bottom:1rem;animation:float 3s ease-in-out infinite;">✈️</div>
+                <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
+                            -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+                            font-size:3.5rem;font-weight:800;margin-bottom:0.5rem;letter-spacing:-1px;">
+                    PIA Operations
+                </div>
+                <div style="color:{config.TEXT_LIGHT};font-size:1.2rem;font-weight:300;">
+                    Secure Enterprise Login
+                </div>
+            </div>
+            <style>
+            @keyframes float {{
+                0%, 100% {{ transform: translateY(0px); }}
+                50% {{ transform: translateY(-20px); }}
+            }}
+            </style>
+        ''', unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.info("🔒 Access is restricted to authorized personnel.")
+            
+            # Display login form with Google OAuth
+            session = login_form(
+                url=config.SUPABASE_URL,
+                apiKey=config.SUPABASE_KEY,
+                providers=["google"],
+            )
+            
+            if session:
+                # User is logged in - populate session state
+                st.session_state.authenticated = True
+                st.session_state.current_user = {
+                    'id': session.get('user', {}).get('id', ''),
+                    'email': session.get('user', {}).get('email', ''),
+                    'username': session.get('user', {}).get('email', '').split('@')[0],
+                    'full_name': session.get('user', {}).get('user_metadata', {}).get('full_name', 
+                                 session.get('user', {}).get('email', '')),
+                    'role': 'admin' if 'admin' in session.get('user', {}).get('email', '') else 'user'
+                }
                 
-                data = auth_conn.auth.sign_in_with_oauth({
-                    "provider": "google",
-                    "options": {
-                        "redirect_to": callback_url,
-                        "query_params": {"access_type": "offline", "prompt": "consent"}
-                    }
-                })
-                
-                # Provide the clickable link
-                if data and data.url:
-                    st.markdown(f'''
-                    <a href="{data.url}" target="_self" style="
-                        display: block;
-                        text-align: center;
-                        background-color: #4285F4;
-                        color: white;
-                        padding: 12px;
-                        border-radius: 8px;
-                        text-decoration: none;
-                        font-weight: bold;
-                        margin-top: 10px;">
-                        👉 Click here to continue to Google
-                    </a>
-                    ''', unsafe_allow_html=True)
-            except Exception as e:
-                st.error(f"Could not generate login link: {e}")
-
-    # Stop the app here so the dashboard doesn't load
-    return False
+                # Clear URL parameters
+                st.query_params.clear()
+                st.rerun()
+        
+        return False
+        
+    except ImportError:
+        # Fallback: If streamlit-supabase-auth is not installed, use direct Supabase approach
+        st.error("❌ `streamlit-supabase-auth` package not found. Please add it to requirements.txt")
+        st.code("pip install streamlit-supabase-auth", language="bash")
+        return False
 
 # ============================================================================
 # DATA INTEGRATION SERVICES
@@ -657,11 +663,10 @@ class ExternalDataService:
                 weather_code = current.get('weathercode', 0)
                 description = weather_codes.get(weather_code, 'Unknown')
                 
-                # Convert to format similar to OpenWeatherMap for compatibility
                 return {
                     'main': {
                         'temp': current.get('temperature', 0),
-                        'humidity': 50  # Open-Meteo doesn't provide humidity in free tier
+                        'humidity': 50
                     },
                     'weather': [{
                         'description': description,
@@ -679,11 +684,11 @@ class ExternalDataService:
         return None
 
 # ============================================================================
-# NL QUERY ENGINE - USING GEMINI
+# NL QUERY ENGINE - USING GEMINI OR GROQ
 # ============================================================================
 
 class NLQueryEngine:
-    """Natural language query processing with rule-based and Gemini AI fallback"""
+    """Natural language query processing with rule-based and AI fallback"""
     
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
@@ -704,9 +709,14 @@ class NLQueryEngine:
         if result:
             return result
         
-        # Try Gemini AI-powered query if key available
+        # Try AI-powered query (Gemini first, then Groq)
         if config.GEMINI_API_KEY:
-            result = self._gemini_query(query)
+            result = self._ai_query(query, "gemini")
+            if result:
+                return result
+        
+        if config.GROQ_API_KEY:
+            result = self._ai_query(query, "groq")
             if result:
                 return result
         
@@ -768,8 +778,8 @@ class NLQueryEngine:
         
         return None
     
-    def _gemini_query(self, query: str) -> Optional[Dict[str, Any]]:
-        """Gemini AI-powered query"""
+    def _ai_query(self, query: str, provider: str) -> Optional[Dict[str, Any]]:
+        """AI-powered query using Gemini or Groq"""
         try:
             schema_info = """
             Available tables:
@@ -785,7 +795,10 @@ Determine which table would answer this query: "{query}"
 
 Respond with ONLY the table name: maintenance, safety_incidents, or flights"""
             
-            table = GeminiAI.chat(prompt).strip().lower()
+            if provider == "gemini":
+                table = GeminiAI.chat(prompt).strip().lower()
+            else:
+                table = GroqAI.chat(prompt).strip().lower()
             
             # Validate table name
             if table not in ['maintenance', 'safety_incidents', 'flights']:
@@ -795,24 +808,24 @@ Respond with ONLY the table name: maintenance, safety_incidents, or flights"""
             
             return {
                 'success': True,
-                'message': f'Found {len(df)} records in {table}',
+                'message': f'Found {len(df)} records in {table} (via {provider.title()} AI)',
                 'data': df,
                 'chart_type': 'table'
             }
             
         except Exception as e:
-            logger.error(f"Gemini query error: {e}")
+            logger.error(f"AI query error: {e}")
             return None
 
 # ============================================================================
-# AI ANALYSIS ENGINE - USING GEMINI
+# AI ANALYSIS ENGINE - USING GEMINI OR GROQ
 # ============================================================================
 
 class AIAnalysisEngine:
-    """AI-powered analysis and reporting using Gemini"""
+    """AI-powered analysis and reporting using Gemini or Groq"""
     
     @staticmethod
-    def analyze_data(df: pd.DataFrame, analysis_type: str, prompt: str = "") -> str:
+    def analyze_data(df: pd.DataFrame, analysis_type: str, prompt: str = "", provider: str = "gemini") -> str:
         """Analyze data and provide insights"""
         if df.empty:
             return "No data available for analysis."
@@ -849,11 +862,15 @@ class AIAnalysisEngine:
             analysis += "- Review temporal patterns\n"
             analysis += "- Identify common factors in incidents\n"
         
-        # If Gemini key available, enhance with AI insights
-        if config.GEMINI_API_KEY and prompt:
+        # Enhance with AI insights
+        if prompt:
             try:
-                ai_insight = GeminiAI.analyze_data(df, prompt)
-                analysis += f"\n\n### AI-Enhanced Insights (Gemini)\n{ai_insight}"
+                if provider == "gemini" and config.GEMINI_API_KEY:
+                    ai_insight = GeminiAI.analyze_data(df, prompt)
+                    analysis += f"\n\n### AI-Enhanced Insights (Gemini)\n{ai_insight}"
+                elif provider == "groq" and config.GROQ_API_KEY:
+                    ai_insight = GroqAI.analyze_data(df, prompt)
+                    analysis += f"\n\n### AI-Enhanced Insights (Groq)\n{ai_insight}"
             except Exception as e:
                 logger.error(f"AI analysis error: {e}")
         
@@ -952,7 +969,7 @@ class PredictiveAnalytics:
     
     @staticmethod
     def forecast_maintenance_hours(maintenance_data: pd.DataFrame, periods: int = 30) -> Dict[str, Any]:
-        """Forecast maintenance hours using ARIMA baseline"""
+        """Forecast maintenance hours using moving average baseline"""
         if maintenance_data.empty or len(maintenance_data) < 10:
             return {'error': 'Insufficient historical data (need at least 10 records)'}
         
@@ -985,25 +1002,10 @@ def apply_custom_css():
             font-family: 'Inter', sans-serif;
         }}
         
-        :root {{
-            --primary-color: {config.PRIMARY_COLOR};
-            --primary-light: {config.PRIMARY_LIGHT};
-            --primary-dark: {config.PRIMARY_DARK};
-            --secondary-color: {config.SECONDARY_COLOR};
-            --accent-color: {config.ACCENT_COLOR};
-            --accent-light: {config.ACCENT_LIGHT};
-            --text-color: {config.TEXT_COLOR};
-            --text-light: {config.TEXT_LIGHT};
-            --background: {config.BACKGROUND};
-            --card-bg: {config.CARD_BG};
-        }}
-        
-        /* Main app background */
         .stApp {{
             background: linear-gradient(135deg, #f5f7fa 0%, #e8ecef 100%);
         }}
         
-        /* Header styling */
         .main-header {{
             background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
             padding: 2.5rem 2rem;
@@ -1011,45 +1013,14 @@ def apply_custom_css():
             margin-bottom: 2rem;
             color: white;
             box-shadow: 0 10px 30px rgba(0,108,53,0.2);
-            position: relative;
-            overflow: hidden;
-        }}
-        
-        .main-header::before {{
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-            animation: shimmer 8s ease-in-out infinite;
-        }}
-        
-        @keyframes shimmer {{
-            0%, 100% {{ transform: translate(0, 0); }}
-            50% {{ transform: translate(-10%, -10%); }}
         }}
         
         .main-header h1 {{
             margin: 0;
             font-size: 2.8rem;
             font-weight: 800;
-            position: relative;
-            z-index: 1;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }}
         
-        .main-header p {{
-            margin: 0.7rem 0 0 0;
-            opacity: 0.95;
-            font-size: 1.1rem;
-            font-weight: 300;
-            position: relative;
-            z-index: 1;
-        }}
-        
-        /* KPI Cards - Enhanced */
         .kpi-card {{
             background: linear-gradient(135deg, white 0%, #f8f9fa 100%);
             padding: 1.8rem;
@@ -1057,19 +1028,6 @@ def apply_custom_css():
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
             border-left: 5px solid {config.PRIMARY_COLOR};
             margin-bottom: 1.5rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            position: relative;
-            overflow: hidden;
-        }}
-        
-        .kpi-card::before {{
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100px;
-            height: 100px;
-            background: radial-gradient(circle, {config.PRIMARY_COLOR}15 0%, transparent 70%);
             transition: all 0.3s ease;
         }}
         
@@ -1078,20 +1036,12 @@ def apply_custom_css():
             box-shadow: 0 8px 30px rgba(0,108,53,0.15);
         }}
         
-        .kpi-card:hover::before {{
-            width: 150px;
-            height: 150px;
-        }}
-        
         .kpi-value {{
             font-size: 2.5rem;
             font-weight: 800;
             background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_LIGHT} 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin: 0.5rem 0;
-            position: relative;
-            z-index: 1;
         }}
         
         .kpi-label {{
@@ -1100,44 +1050,8 @@ def apply_custom_css():
             text-transform: uppercase;
             letter-spacing: 1px;
             font-weight: 600;
-            position: relative;
-            z-index: 1;
         }}
         
-        /* Status Badges - Enhanced */
-        .status-badge {{
-            display: inline-block;
-            padding: 0.4rem 1rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            transition: all 0.2s ease;
-        }}
-        
-        .status-badge:hover {{
-            transform: scale(1.05);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }}
-        
-        .status-success {{ 
-            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); 
-            color: #155724; 
-        }}
-        .status-warning {{ 
-            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%); 
-            color: #856404; 
-        }}
-        .status-danger {{ 
-            background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%); 
-            color: #721c24; 
-        }}
-        .status-info {{ 
-            background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%); 
-            color: #0c5460; 
-        }}
-        
-        /* Buttons - Enhanced */
         .stButton>button {{
             background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
             color: white;
@@ -1145,29 +1059,8 @@ def apply_custom_css():
             border-radius: 12px;
             padding: 0.7rem 2.5rem;
             font-weight: 600;
-            font-size: 1rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(0,108,53,0.2);
-            position: relative;
-            overflow: hidden;
-        }}
-        
-        .stButton>button::before {{
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.2);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }}
-        
-        .stButton>button:hover::before {{
-            width: 300px;
-            height: 300px;
         }}
         
         .stButton>button:hover {{
@@ -1175,247 +1068,12 @@ def apply_custom_css():
             box-shadow: 0 8px 25px rgba(0,108,53,0.3);
         }}
         
-        .stButton>button:active {{
-            transform: translateY(0);
-        }}
-        
-        /* Forms - Enhanced */
-        .stTextInput>div>div>input, 
-        .stSelectbox>div>div>div,
-        .stTextArea>div>div>textarea {{
-            border-radius: 10px;
-            border: 2px solid #e0e0e0;
-            padding: 0.7rem 1rem;
-            transition: all 0.3s ease;
-            font-size: 0.95rem;
-        }}
-        
-        .stTextInput>div>div>input:focus, 
-        .stSelectbox>div>div>div:focus,
-        .stTextArea>div>div>textarea:focus {{
-            border-color: {config.PRIMARY_COLOR};
-            box-shadow: 0 0 0 3px {config.PRIMARY_COLOR}20;
-        }}
-        
-        /* Tabs - Enhanced */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 8px;
-            background-color: white;
-            padding: 10px;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        }}
-        
-        .stTabs [data-baseweb="tab"] {{
-            border-radius: 8px;
-            padding: 12px 24px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }}
-        
-        .stTabs [data-baseweb="tab"]:hover {{
-            background-color: {config.PRIMARY_COLOR}10;
-        }}
-        
-        .stTabs [aria-selected="true"] {{
-            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
-            color: white;
-        }}
-        
-        /* Sidebar - Enhanced */
-        [data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, white 0%, #f8f9fa 100%);
-            box-shadow: 4px 0 20px rgba(0,0,0,0.05);
-        }}
-        
-        [data-testid="stSidebar"] .stRadio > label {{
-            background: white;
-            padding: 0.8rem 1.2rem;
-            border-radius: 10px;
-            margin-bottom: 0.5rem;
-            transition: all 0.3s ease;
-            border: 2px solid transparent;
-        }}
-        
-        [data-testid="stSidebar"] .stRadio > label:hover {{
-            background: {config.PRIMARY_COLOR}10;
-            border-color: {config.PRIMARY_COLOR}30;
-            transform: translateX(5px);
-        }}
-        
-        /* Metrics - Enhanced */
         [data-testid="stMetricValue"] {{
             font-size: 2rem;
             font-weight: 800;
             background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_LIGHT} 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-        }}
-        
-        /* DataFrames - Enhanced */
-        .dataframe {{
-            font-size: 0.9rem;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-        }}
-        
-        .dataframe thead tr {{
-            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
-            color: white;
-        }}
-        
-        .dataframe tbody tr:hover {{
-            background-color: {config.PRIMARY_COLOR}10;
-            transition: background-color 0.2s ease;
-        }}
-        
-        /* Expanders - Enhanced */
-        .streamlit-expanderHeader {{
-            background: linear-gradient(135deg, white 0%, #f8f9fa 100%);
-            border-radius: 12px;
-            font-weight: 600;
-            padding: 1rem;
-            transition: all 0.3s ease;
-            border: 2px solid #e0e0e0;
-        }}
-        
-        .streamlit-expanderHeader:hover {{
-            border-color: {config.PRIMARY_COLOR};
-            box-shadow: 0 4px 15px rgba(0,108,53,0.1);
-        }}
-        
-        /* Info/Success/Warning/Error boxes - Enhanced */
-        .stAlert {{
-            border-radius: 12px;
-            border-left-width: 5px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-            animation: slideIn 0.3s ease;
-        }}
-        
-        @keyframes slideIn {{
-            from {{
-                opacity: 0;
-                transform: translateY(-10px);
-            }}
-            to {{
-                opacity: 1;
-                transform: translateY(0);
-            }}
-        }}
-        
-        /* Dividers - Enhanced */
-        hr {{
-            margin: 2rem 0;
-            border: none;
-            height: 2px;
-            background: linear-gradient(90deg, transparent 0%, {config.PRIMARY_COLOR}30 50%, transparent 100%);
-        }}
-        
-        /* Code blocks - Enhanced */
-        .stCodeBlock {{
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
-        }}
-        
-        /* Plotly charts - Enhanced container */
-        .js-plotly-plot {{
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            overflow: hidden;
-        }}
-        
-        /* Scrollbars - Enhanced */
-        ::-webkit-scrollbar {{
-            width: 10px;
-            height: 10px;
-        }}
-        
-        ::-webkit-scrollbar-track {{
-            background: #f1f1f1;
-            border-radius: 10px;
-        }}
-        
-        ::-webkit-scrollbar-thumb {{
-            background: linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
-            border-radius: 10px;
-            transition: background 0.3s ease;
-        }}
-        
-        ::-webkit-scrollbar-thumb:hover {{
-            background: {config.PRIMARY_DARK};
-        }}
-        
-        /* Loading animation */
-        .stSpinner > div {{
-            border-color: {config.PRIMARY_COLOR} transparent transparent transparent;
-        }}
-        
-        /* Mobile responsiveness */
-        @media (max-width: 768px) {{
-            .main-header h1 {{
-                font-size: 2rem;
-            }}
-            .kpi-value {{
-                font-size: 1.8rem;
-            }}
-            .stButton>button {{
-                padding: 0.6rem 1.5rem;
-                font-size: 0.9rem;
-            }}
-        }}
-        
-        /* Animations */
-        @keyframes fadeIn {{
-            from {{ opacity: 0; transform: translateY(20px); }}
-            to {{ opacity: 1; transform: translateY(0); }}
-        }}
-        
-        .element-container {{
-            animation: fadeIn 0.5s ease;
-        }}
-        
-        /* Download buttons - Enhanced */
-        .stDownloadButton>button {{
-            background: linear-gradient(135deg, {config.ACCENT_COLOR} 0%, #a00d25 100%);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            padding: 0.7rem 2rem;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(200,16,46,0.2);
-        }}
-        
-        .stDownloadButton>button:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(200,16,46,0.3);
-        }}
-        
-        /* File uploader - Enhanced */
-        [data-testid="stFileUploader"] {{
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            border: 2px dashed {config.PRIMARY_COLOR}40;
-            transition: all 0.3s ease;
-        }}
-        
-        [data-testid="stFileUploader"]:hover {{
-            border-color: {config.PRIMARY_COLOR};
-            box-shadow: 0 4px 20px rgba(0,108,53,0.1);
-        }}
-        
-        /* Number input - Enhanced */
-        .stNumberInput>div>div>input {{
-            border-radius: 10px;
-            border: 2px solid #e0e0e0;
-            transition: all 0.3s ease;
-        }}
-        
-        .stNumberInput>div>div>input:focus {{
-            border-color: {config.PRIMARY_COLOR};
-            box-shadow: 0 0 0 3px {config.PRIMARY_COLOR}20;
         }}
         </style>
     """, unsafe_allow_html=True)
@@ -1431,76 +1089,21 @@ def render_header():
                     <p>Real-time operational reporting and analytics for Pakistan International Airlines</p>
                 </div>
                 <div style="text-align:right;min-width:200px;">
-                    <div style="background:rgba(255,255,255,0.15);padding:1rem 1.5rem;border-radius:12px;
-                                backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.2);">
+                    <div style="background:rgba(255,255,255,0.15);padding:1rem 1.5rem;border-radius:12px;">
                         <div style="color:white;font-size:0.75rem;opacity:0.9;margin-bottom:0.3rem;">
                             PAKISTAN TIME (GMT+5)
                         </div>
-                        <div id="live-clock" style="color:white;font-size:1.8rem;font-weight:700;letter-spacing:1px;">
+                        <div style="color:white;font-size:1.8rem;font-weight:700;">
                             {pkt_time.strftime('%H:%M:%S')}
                         </div>
-                        <div id="live-date" style="color:white;font-size:0.75rem;opacity:0.8;margin-top:0.2rem;">
+                        <div style="color:white;font-size:0.75rem;opacity:0.8;margin-top:0.2rem;">
                             {pkt_time.strftime('%a, %d %b %Y')}
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        
-        <script>
-        function updateClock() {{
-            // Get current time in GMT+5 (Pakistan Standard Time)
-            const now = new Date();
-            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-            const pkt = new Date(utc + (3600000 * 5)); // GMT+5
-            
-            // Update time
-            const hours = String(pkt.getHours()).padStart(2, '0');
-            const minutes = String(pkt.getMinutes()).padStart(2, '0');
-            const seconds = String(pkt.getSeconds()).padStart(2, '0');
-            const timeString = hours + ':' + minutes + ':' + seconds;
-            
-            // Update date
-            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const dateString = days[pkt.getDay()] + ', ' + 
-                              String(pkt.getDate()).padStart(2, '0') + ' ' + 
-                              months[pkt.getMonth()] + ' ' + 
-                              pkt.getFullYear();
-            
-            const clockElement = document.getElementById('live-clock');
-            const dateElement = document.getElementById('live-date');
-            
-            if (clockElement) clockElement.textContent = timeString;
-            if (dateElement) dateElement.textContent = dateString;
-        }}
-        
-        // Update immediately and then every second
-        updateClock();
-        setInterval(updateClock, 1000);
-        </script>
     """, unsafe_allow_html=True)
-
-def render_kpi_card(label: str, value: str, delta: str = None):
-    """Render a KPI card"""
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.markdown(f"""
-            <div class="kpi-card">
-                <div class="kpi-label">{label}</div>
-                <div class="kpi-value">{value}</div>
-            </div>
-        """, unsafe_allow_html=True)
-
-def create_download_link(data: bytes, filename: str, file_format: str) -> str:
-    """Create a download link for reports"""
-    b64 = base64.b64encode(data).decode()
-    mime_types = {
-        'csv': 'text/csv',
-        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'pdf': 'application/pdf'
-    }
-    return f'<a href="data:{mime_types.get(file_format, "application/octet-stream")};base64,{b64}" download="{filename}">Download {file_format.upper()} Report</a>'
 
 # ============================================================================
 # PAGE: DASHBOARD
@@ -1548,26 +1151,11 @@ def page_dashboard():
         st.metric("Maintenance Hours", f"{total_hours:,.0f}", delta="This period")
     
     with col5:
-        # Weather summary - FREE, no API key needed!
         weather_data = ExternalDataService.fetch_weather("Karachi")
         if weather_data:
             temp = weather_data['main']['temp']
             description = weather_data['weather'][0]['description'].title()
-            weather_icons = {
-                'clear': '☀️', 'mainly': '🌤️', 'partly': '⛅', 'overcast': '☁️',
-                'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
-                'thunderstorm': '⛈️', 'snow': '❄️', 'fog': '🌫️'
-            }
-            
-            # Find matching icon
-            icon = '🌤️'
-            desc_lower = description.lower()
-            for key, emoji in weather_icons.items():
-                if key in desc_lower:
-                    icon = emoji
-                    break
-            
-            st.metric(f"{icon} Karachi", f"{temp:.1f}°C", delta=description)
+            st.metric(f"☀️ Karachi", f"{temp:.1f}°C", delta=description)
         else:
             st.metric("🌤️ Weather", "Loading...", delta="Fetching data")
     
@@ -1597,80 +1185,6 @@ def page_dashboard():
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No incident data available")
-    
-    st.divider()
-    
-    # Timeline Chart
-    st.subheader("Flight Operations Timeline")
-    if not flights_df.empty:
-        flights_df['scheduled_departure'] = pd.to_datetime(flights_df['scheduled_departure'])
-        daily_flights = flights_df.groupby(flights_df['scheduled_departure'].dt.date).size().reset_index()
-        daily_flights.columns = ['Date', 'Flights']
-        
-        fig = px.line(daily_flights, x='Date', y='Flights',
-                      color_discrete_sequence=[config.PRIMARY_COLOR])
-        fig.update_layout(hovermode='x unified')
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No flight data available")
-    
-    # External Data Integration
-    with st.expander("🌐 Live External Data"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Live Flight Tracking")
-            if st.button("Fetch OpenSky Data"):
-                with st.spinner("Fetching live flight data..."):
-                    live_flights = ExternalDataService.fetch_opensky_flights()
-                    if live_flights is not None and not live_flights.empty:
-                        st.success(f"Found {len(live_flights)} PIA flights")
-                        st.dataframe(live_flights[['callsign', 'origin_country', 'latitude', 'longitude', 'velocity']])
-                    else:
-                        st.info("No live PIA flights found or API key not configured")
-        
-        with col2:
-            st.subheader("Weather Conditions")
-            city = st.selectbox("Select Airport City", ["Karachi", "Lahore", "Islamabad", "Peshawar", "Quetta"])
-            if st.button("Fetch Weather"):
-                with st.spinner("Fetching weather data..."):
-                    weather = ExternalDataService.fetch_weather(city)
-                    if weather:
-                        st.success("✅ Using Open-Meteo (Free Weather API)")
-                        col_a, col_b, col_c = st.columns(3)
-                        with col_a:
-                            st.metric("Temperature", f"{weather['main']['temp']:.1f}°C")
-                        with col_b:
-                            st.metric("Conditions", weather['weather'][0]['description'].title())
-                        with col_c:
-                            st.metric("Wind Speed", f"{weather['wind']['speed']:.1f} m/s")
-                    else:
-                        st.error("Unable to fetch weather data. Check internet connection.")
-    
-    # Admin Tools
-    if st.session_state.get('current_user', {}).get('role') == 'admin':
-        with st.expander("⚙️ Admin Tools"):
-            st.warning("**Danger Zone:** These actions cannot be undone!")
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                if st.button("🗑️ Clear Maintenance Data", type="secondary"):
-                    if db.clear_table('maintenance'):
-                        st.success("Maintenance data cleared!")
-                        st.rerun()
-            
-            with col2:
-                if st.button("🗑️ Clear Incidents Data", type="secondary"):
-                    if db.clear_table('safety_incidents'):
-                        st.success("Incidents data cleared!")
-                        st.rerun()
-            
-            with col3:
-                if st.button("🗑️ Clear Flights Data", type="secondary"):
-                    if db.clear_table('flights'):
-                        st.success("Flights data cleared!")
-                        st.rerun()
 
 # ============================================================================
 # PAGE: FORMS & SUBMIT
@@ -1844,25 +1358,19 @@ def page_csv_upload():
     templates = {
         'maintenance': {
             'data': """aircraft_registration,maintenance_type,description,scheduled_date,completion_date,technician_name,hours_spent,cost,status,priority
-AP-BHA,A-Check,Routine A-Check inspection and servicing,2024-01-15,2024-01-16,Tech-101,8.5,45000,Completed,Medium
-AP-BHB,Engine Overhaul,Complete engine overhaul - left engine,2024-02-20,,Tech-205,0,350000,Scheduled,High
-AP-BHC,Landing Gear,Landing gear inspection and maintenance,2024-01-28,2024-01-29,Tech-150,12.0,85000,Completed,High""",
+AP-BHA,A-Check,Routine A-Check inspection,2024-01-15,2024-01-16,Tech-101,8.5,45000,Completed,Medium""",
             'filename': 'maintenance_template.csv',
             'icon': '✈️'
         },
         'safety_incidents': {
             'data': """incident_date,incident_type,severity,aircraft_registration,flight_number,location,description,immediate_action,investigation_status,reporter_name
-2024-01-10,Bird Strike,Minor,AP-BHA,PK301,Karachi,Bird strike during takeoff - windshield damage,Flight continued safely - windshield inspected upon landing,Closed,Capt. Khan-201
-2024-01-15,Hard Landing,Moderate,AP-BHC,PK450,Lahore,Hard landing due to wind shear conditions,Aircraft inspected - no structural damage found,Closed,Capt. Ahmed-305
-2024-01-22,Engine Issue,Major,AP-BHE,PK205,Dubai,Engine vibration detected during cruise,Emergency landing protocol initiated - landed safely,Under Investigation,Capt. Hassan-410""",
+2024-01-10,Bird Strike,Minor,AP-BHA,PK301,Karachi,Bird strike during takeoff,Flight continued safely,Closed,Capt. Khan""",
             'filename': 'safety_incidents_template.csv',
             'icon': '⚠️'
         },
         'flights': {
             'data': """flight_number,aircraft_registration,departure_airport,arrival_airport,scheduled_departure,scheduled_arrival,passengers_count,cargo_weight,flight_status,delay_reason,captain_name
-PK301,AP-BHA,KHI,LHE,2024-01-15 08:00,2024-01-15 09:30,245,8500,Arrived,,Capt. Khan-201
-PK302,AP-BHB,LHE,KHI,2024-01-15 10:30,2024-01-15 12:00,198,7200,Arrived,,Capt. Ahmed-305
-PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,12000,Delayed,Technical,Capt. Hassan-410""",
+PK301,AP-BHA,KHI,LHE,2024-01-15 08:00,2024-01-15 09:30,245,8500,Arrived,,Capt. Khan""",
             'filename': 'flights_template.csv',
             'icon': '🛫'
         }
@@ -1908,63 +1416,21 @@ PK450,AP-BHC,KHI,DXB,2024-01-16 14:00,2024-01-16 17:00,312,12000,Delayed,Technic
     table_choice = st.selectbox("Select Target Table", 
         ["maintenance", "safety_incidents", "flights"])
     
-    st.info("📋 Upload a CSV file to bulk import records. The system will help you map columns to database fields.")
-    
-    # Modified section with delete button
-    uploaded_file = st.file_uploader("Choose CSV file", type=['csv'], key="csv_file_uploader")
-    
-    # Add the delete button if a file is present
-    if uploaded_file is not None:
-        if st.button("🗑️ Delete/Clear Uploaded File", type="secondary"):
-            st.session_state.csv_file_uploader = None
-            st.rerun()
+    uploaded_file = st.file_uploader("Choose CSV file", type=['csv'])
     
     if uploaded_file:
         try:
             df = pd.read_csv(uploaded_file)
             st.success(f"✅ File uploaded: {len(df)} rows found")
-            
-            st.subheader("Preview Data")
             st.dataframe(df.head())
-            
-            st.subheader("Map Columns")
-            
-            expected_columns = {
-                'maintenance': ['aircraft_registration', 'maintenance_type', 'scheduled_date', 
-                                'technician_name', 'hours_spent', 'cost', 'status', 'priority'],
-                'safety_incidents': ['incident_date', 'incident_type', 'severity', 
-                                     'aircraft_registration', 'description', 'investigation_status'],
-                'flights': ['flight_number', 'aircraft_registration', 'departure_airport', 
-                            'arrival_airport', 'scheduled_departure', 'scheduled_arrival', 
-                            'passengers_count', 'flight_status']
-            }
-            
-            column_mapping = {}
-            cols = st.columns(2)
-            
-            for idx, expected_col in enumerate(expected_columns[table_choice]):
-                with cols[idx % 2]:
-                    mapped = st.selectbox(
-                        f"Map '{expected_col}'",
-                        options=['-- Skip --'] + list(df.columns),
-                        key=f"map_{expected_col}"
-                    )
-                    if mapped != '-- Skip --':
-                        column_mapping[expected_col] = mapped
             
             if st.button("Import Data", type="primary"):
                 with st.spinner("Importing data..."):
-                    records = []
-                    for _, row in df.iterrows():
-                        record = {}
-                        for expected, actual in column_mapping.items():
-                            record[expected] = row[actual]
-                        records.append(record)
-                    
+                    records = df.to_dict('records')
                     success_count = db.bulk_insert(table_choice, records)
                     
                     if success_count > 0:
-                        st.success(f"✅ Successfully imported {success_count} out of {len(records)} records!")
+                        st.success(f"✅ Successfully imported {success_count} records!")
                         st.balloons()
                     else:
                         st.error("Failed to import records")
@@ -1989,57 +1455,26 @@ def page_data_management():
         return
     
     st.subheader(f"Total Records: {len(df)}")
-    
-    with st.expander("🔍 Filters"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if 'aircraft_registration' in df.columns:
-                aircraft_filter = st.multiselect("Aircraft", df['aircraft_registration'].unique())
-                if aircraft_filter:
-                    df = df[df['aircraft_registration'].isin(aircraft_filter)]
-        
-        with col2:
-            if 'status' in df.columns:
-                status_filter = st.multiselect("Status", df['status'].unique())
-                if status_filter:
-                    df = df[df['status'].isin(status_filter)]
-            elif 'flight_status' in df.columns:
-                status_filter = st.multiselect("Status", df['flight_status'].unique())
-                if status_filter:
-                    df = df[df['flight_status'].isin(status_filter)]
-    
     st.dataframe(df, use_container_width=True, height=400)
     
-    st.subheader("Edit/Delete Record")
+    st.subheader("Delete Record")
     
     if 'id' in df.columns:
-        record_id = st.number_input("Record ID to Edit/Delete", min_value=1, step=1)
+        record_id = st.number_input("Record ID to Delete", min_value=1, step=1)
         
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if st.button("🗑️ Delete Record", type="secondary"):
-                if db.delete(table, record_id):
-                    st.success("Record deleted successfully!")
-                    st.rerun()
-                else:
-                    st.error("Failed to delete record")
-        
-        with col2:
-            if st.button("✏️ View/Edit"):
-                record = df[df['id'] == record_id]
-                if not record.empty:
-                    st.json(record.iloc[0].to_dict())
-                else:
-                    st.error("Record not found")
+        if st.button("🗑️ Delete Record", type="secondary"):
+            if db.delete(table, record_id):
+                st.success("Record deleted successfully!")
+                st.rerun()
+            else:
+                st.error("Failed to delete record")
 
 # ============================================================================
 # PAGE: NL/AI QUERY
 # ============================================================================
 
 def page_nl_query():
-    """Natural language query interface with Gemini AI"""
+    """Natural language query interface with AI"""
     st.header("💬 Natural Language Query")
     
     st.markdown("""
@@ -2047,7 +1482,6 @@ def page_nl_query():
     - "Total maintenance hours"
     - "Show emergency incidents"
     - "Delayed flights"
-    - "Recent incidents"
     """)
     
     query_engine = NLQueryEngine(db)
@@ -2063,109 +1497,92 @@ def page_nl_query():
                     st.success(result['message'])
                     
                     if result['data'] is not None and not result['data'].empty:
-                        if 'metric' in result:
-                            st.metric("Result", f"{result['metric']:,.1f}")
-                        
-                        st.subheader("Query Results")
-                        
-                        if result.get('chart_type') == 'table':
-                            st.dataframe(result['data'], use_container_width=True)
-                        elif result.get('chart_type') == 'bar':
-                            fig = px.bar(result['data'], x='maintenance_type', y='hours_spent',
-                                         color='status', barmode='group')
-                            st.plotly_chart(fig, use_container_width=True)
-                        
-                        csv = result['data'].to_csv(index=False)
-                        st.download_button(
-                            "Download Results",
-                            csv,
-                            f"query_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                            "text/csv"
-                        )
+                        st.dataframe(result['data'], use_container_width=True)
                 else:
                     st.warning(result['message'])
-        else:
-            st.error("Please enter a query")
     
     st.divider()
     st.subheader("🤖 AI Analysis Assistant")
     
-    # Check if Gemini is configured
-    if not config.GEMINI_API_KEY:
-        st.warning("💡 **Gemini AI not configured.** Add GEMINI_API_KEY to your secrets to enable AI analysis.")
-        return
+    # Show AI status
+    col1, col2 = st.columns(2)
+    with col1:
+        if config.GEMINI_API_KEY:
+            st.success("✅ Gemini AI enabled")
+        else:
+            st.warning("⚠️ Gemini AI not configured")
+    with col2:
+        if config.GROQ_API_KEY:
+            st.success("✅ Groq AI enabled")
+        else:
+            st.warning("⚠️ Groq AI not configured")
     
-    st.success("✅ Gemini AI is enabled and ready!")
+    if not config.GEMINI_API_KEY and not config.GROQ_API_KEY:
+        st.error("❌ No AI provider configured. Add GEMINI_API_KEY or GROQ_API_KEY to secrets.")
+        return
     
     analysis_prompt = st.text_area("Ask for analysis or insights:", 
         placeholder="Analyze maintenance trends and suggest optimizations...")
     
-    analysis_type = st.selectbox("Analysis Type", 
-        ["summary", "trends", "anomalies", "root_cause"])
+    col1, col2 = st.columns(2)
+    with col1:
+        analysis_type = st.selectbox("Analysis Type", 
+            ["summary", "trends", "anomalies", "root_cause"])
+    with col2:
+        ai_provider = st.selectbox("AI Provider", 
+            [p for p in ["gemini", "groq"] if getattr(config, f"{p.upper()}_API_KEY")])
     
     table_for_analysis = st.selectbox("Data Source", 
         ["maintenance", "safety_incidents", "flights"])
     
     if st.button("Analyze", type="primary"):
         if analysis_prompt:
-            with st.spinner("Analyzing data with Gemini AI..."):
+            with st.spinner(f"Analyzing data with {ai_provider.title()} AI..."):
                 df = db.query(table_for_analysis, limit=1000)
                 
                 if df.empty:
                     st.warning("No data available for analysis")
                 else:
-                    analysis = AIAnalysisEngine.analyze_data(df, analysis_type, analysis_prompt)
+                    analysis = AIAnalysisEngine.analyze_data(df, analysis_type, analysis_prompt, ai_provider)
                     st.markdown(analysis)
-                    
-                    st.subheader("Download Analysis Report")
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        pdf_data = ReportGenerator.generate_pdf_report(analysis, "AI Analysis Report")
-                        st.download_button("Download PDF", pdf_data, 
-                                           f"analysis_{datetime.now().strftime('%Y%m%d')}.pdf",
-                                           "application/pdf")
-                    
-                    with col2:
-                        csv_data = df.to_csv(index=False).encode('utf-8')
-                        st.download_button("Download CSV", csv_data,
-                                           f"data_{datetime.now().strftime('%Y%m%d')}.csv",
-                                           "text/csv")
 
 # ============================================================================
 # PAGE: GENERIC AI CHAT
 # ============================================================================
 
 def page_ai_chat():
-    """Generic AI chat assistant using Gemini"""
+    """Generic AI chat assistant using Gemini or Groq"""
     st.header("🤖 AI Assistant")
     
     st.markdown("""
-    Chat with an AI assistant about anything! This is a general-purpose chat,
-    separate from data analysis. Ask questions, get advice, or just have a conversation.
+    Chat with an AI assistant about anything! Choose between Gemini or Groq.
     """)
     
-    # Check if Gemini is configured
+    # Show AI status
+    col1, col2 = st.columns(2)
+    with col1:
+        if config.GEMINI_API_KEY:
+            st.success("✅ Gemini AI available")
+        else:
+            st.info("ℹ️ Gemini not configured")
+    with col2:
+        if config.GROQ_API_KEY:
+            st.success("✅ Groq AI available")
+        else:
+            st.info("ℹ️ Groq not configured")
+    
     if not config.GEMINI_API_KEY and not config.GROQ_API_KEY:
-        st.error("❌ **AI not configured.** Please add either GEMINI_API_KEY or GROQ_API_KEY to your secrets.")
-        st.info("""
-        **How to add API keys:**
-        1. Go to Settings → Secrets
-        2. Add your Gemini API key: `GEMINI_API_KEY = "your-key-here"`
-        3. Or add Groq API key: `GROQ_API_KEY = "your-key-here"`
-        4. Restart the app
-        """)
+        st.error("❌ **No AI configured.** Please add GEMINI_API_KEY or GROQ_API_KEY to your secrets.")
         return
     
     # Choose AI provider
-    if config.GEMINI_API_KEY and config.GROQ_API_KEY:
-        ai_provider = st.selectbox("AI Provider", ["Gemini (Google)", "Groq (Fast)"])
-    elif config.GEMINI_API_KEY:
-        ai_provider = "Gemini (Google)"
-        st.success("✅ Using Gemini AI")
-    else:
-        ai_provider = "Groq (Fast)"
-        st.success("✅ Using Groq AI")
+    available_providers = []
+    if config.GEMINI_API_KEY:
+        available_providers.append("Gemini (Google)")
+    if config.GROQ_API_KEY:
+        available_providers.append("Groq (Fast)")
+    
+    ai_provider = st.selectbox("Select AI Provider", available_providers)
     
     # Initialize chat history
     if 'chat_history' not in st.session_state:
@@ -2183,53 +1600,36 @@ def page_ai_chat():
         if message['role'] == 'user':
             st.markdown(f"**You:** {message['content']}")
         else:
-            st.markdown(f"**AI:** {message['content']}")
+            st.markdown(f"**AI ({message.get('provider', 'AI')}):** {message['content']}")
         st.divider()
     
     # Chat input
-    user_message = st.text_area("Your message:", placeholder="Ask me anything...", height=100, key="chat_input")
+    user_message = st.text_area("Your message:", placeholder="Ask me anything...", height=100)
     
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        send_button = st.button("📤 Send", type="primary", use_container_width=True)
-    
-    if send_button and user_message:
-        # Add user message to history
-        st.session_state.chat_history.append({'role': 'user', 'content': user_message})
-        
-        with st.spinner("AI is thinking..."):
-            # Get AI response
-            system_prompt = """You are a helpful AI assistant. Be friendly, informative, and concise.
-Help the user with any questions they have, whether about airline operations, technology, or general topics."""
+    if st.button("📤 Send", type="primary"):
+        if user_message:
+            # Add user message to history
+            st.session_state.chat_history.append({'role': 'user', 'content': user_message})
             
-            if "Gemini" in ai_provider:
-                ai_response = GeminiAI.chat(user_message, system_prompt)
-            else:
-                ai_response = GroqAI.chat(user_message, system_prompt)
+            with st.spinner(f"{ai_provider} is thinking..."):
+                system_prompt = """You are a helpful AI assistant for Pakistan International Airlines. 
+Be friendly, informative, and concise. Help with airline operations, technology, or general topics."""
+                
+                if "Gemini" in ai_provider:
+                    ai_response = GeminiAI.chat(user_message, system_prompt)
+                    provider_name = "Gemini"
+                else:
+                    ai_response = GroqAI.chat(user_message, system_prompt)
+                    provider_name = "Groq"
+                
+                # Add AI response to history
+                st.session_state.chat_history.append({
+                    'role': 'assistant', 
+                    'content': ai_response,
+                    'provider': provider_name
+                })
             
-            # Add AI response to history
-            st.session_state.chat_history.append({'role': 'assistant', 'content': ai_response})
-        
-        st.rerun()
-    
-    # Example questions
-    with st.expander("💡 Example Questions"):
-        st.markdown("""
-        **General:**
-        - What are best practices for airline maintenance?
-        - Explain the difference between A-Check and C-Check
-        - How to improve on-time performance?
-        
-        **Technical:**
-        - What is predictive maintenance?
-        - Explain aircraft turnaround time optimization
-        - Best practices for safety reporting
-        
-        **Casual:**
-        - What's the weather like today?
-        - Tell me a joke
-        - Give me productivity tips
-        """)
+            st.rerun()
 
 # ============================================================================
 # PAGE: REPORTS
@@ -2239,144 +1639,42 @@ def page_reports():
     """Generate scheduled and on-demand reports"""
     st.header("📊 Reports & Analytics")
     
-    tab1, tab2, tab3 = st.tabs(["📅 Scheduled Reports", "🔮 Predictive Analytics", "📈 Custom Report"])
+    col1, col2 = st.columns(2)
     
-    with tab1:
-        st.subheader("Generate Reports")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            report_type = st.selectbox("Report Type", 
-                ["Maintenance Summary", "Safety Report", "Flight Operations", "Comprehensive"])
+    with col1:
+        report_type = st.selectbox("Report Type", 
+            ["Maintenance Summary", "Safety Report", "Flight Operations"])
+        format_choice = st.selectbox("Format", ["CSV", "Excel"])
+    
+    with col2:
+        date_from = st.date_input("From Date", datetime.now() - timedelta(days=30))
+        date_to = st.date_input("To Date", datetime.now())
+    
+    if st.button("Generate Report", type="primary"):
+        with st.spinner("Generating report..."):
+            if report_type == "Maintenance Summary":
+                df = db.query('maintenance', limit=1000)
+            elif report_type == "Safety Report":
+                df = db.query('safety_incidents', limit=1000)
+            else:
+                df = db.query('flights', limit=1000)
             
-            period = st.selectbox("Period", 
-                ["Weekly", "Bi-Monthly", "Monthly", "Quarterly", "Bi-Annual", "Annual"])
-        
-        with col2:
-            date_from = st.date_input("From Date", datetime.now() - timedelta(days=30))
-            date_to = st.date_input("To Date", datetime.now())
-            
-            format_choice = st.selectbox("Format", ["PDF", "Excel", "CSV"])
-        
-        if st.button("Generate Report", type="primary"):
-            with st.spinner("Generating report..."):
-                if report_type == "Maintenance Summary":
-                    df = db.query('maintenance', limit=1000)
-                elif report_type == "Safety Report":
-                    df = db.query('safety_incidents', limit=1000)
-                elif report_type == "Flight Operations":
-                    df = db.query('flights', limit=1000)
+            if not df.empty:
+                if format_choice == "CSV":
+                    csv_data = ReportGenerator.generate_csv_report(df, f"{report_type}.csv")
+                    st.download_button("Download CSV", csv_data,
+                        f"{report_type.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.csv",
+                        "text/csv")
                 else:
-                    maint = db.query('maintenance', limit=500)
-                    incidents = db.query('safety_incidents', limit=500)
-                    flights = db.query('flights', limit=500)
-                    
-                    report_content = f"""
-# PIA Operations Comprehensive Report
-**Period:** {date_from} to {date_to}
-
-## Maintenance Summary
-- Total Tasks: {len(maint)}
-- Total Hours: {maint['hours_spent'].sum() if not maint.empty else 0:,.1f}
-- Total Cost: PKR {maint['cost'].sum() if not maint.empty else 0:,.2f}
-
-## Safety Summary
-- Total Incidents: {len(incidents)}
-- Critical Incidents: {len(incidents[incidents['severity'].isin(['Major', 'Critical'])]) if not incidents.empty else 0}
-
-## Flight Operations
-- Total Flights: {len(flights)}
-- Delayed: {len(flights[flights['flight_status']=='Delayed']) if not flights.empty else 0}
-- Total Passengers: {flights['passengers_count'].sum() if not flights.empty else 0:,.0f}
-"""
-                    
-                    if format_choice == "PDF":
-                        report_data = ReportGenerator.generate_pdf_report(report_content, 
-                            f"{report_type} - {period}")
-                        st.download_button("Download PDF Report", report_data,
-                            f"comprehensive_report_{datetime.now().strftime('%Y%m%d')}.pdf",
-                            "application/pdf")
-                    
-                    st.markdown(report_content)
-                    st.success("Report generated successfully!")
-                    return
+                    excel_data = ReportGenerator.generate_excel_report(df, f"{report_type}.xlsx")
+                    st.download_button("Download Excel", excel_data,
+                        f"{report_type.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
                 
-                if not df.empty:
-                    if format_choice == "CSV":
-                        csv_data = ReportGenerator.generate_csv_report(df, f"{report_type}.csv")
-                        st.download_button("Download CSV", csv_data,
-                            f"{report_type.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.csv",
-                            "text/csv")
-                    elif format_choice == "Excel":
-                        excel_data = ReportGenerator.generate_excel_report(df, f"{report_type}.xlsx")
-                        st.download_button("Download Excel", excel_data,
-                            f"{report_type.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                    
-                    st.dataframe(df, use_container_width=True)
-                    st.success("Report generated successfully!")
-                else:
-                    st.warning("No data available for selected criteria")
-    
-    with tab2:
-        st.subheader("Predictive Models")
-        
-        st.info("📊 Basic predictive models using historical data")
-        
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("### Flight Delay Prediction")
-            if st.button("Predict Delays"):
-                flights_df = db.query('flights', limit=1000)
-                if flights_df.empty:
-                    st.warning("No flight data available")
-                else:
-                    predictions = PredictiveAnalytics.predict_delays(flights_df)
-                    
-                    if 'error' not in predictions:
-                        st.metric("Overall Delay Rate", predictions['overall_delay_rate'])
-                        st.json(predictions['high_risk_routes'])
-                        st.info(predictions['recommendation'])
-                        st.caption(f"Model: {predictions['model']}")
-                    else:
-                        st.error(predictions['error'])
-        
-        with col2:
-            st.markdown("### Maintenance Hours Forecast")
-            forecast_days = st.number_input("Forecast Days", min_value=7, max_value=90, value=30)
-            
-            if st.button("Forecast Hours"):
-                maint_df = db.query('maintenance', limit=1000)
-                if maint_df.empty:
-                    st.warning("No maintenance data available")
-                else:
-                    forecast = PredictiveAnalytics.forecast_maintenance_hours(maint_df, forecast_days)
-                    
-                    if 'error' not in forecast:
-                        st.metric("Daily Forecast", forecast['forecast_daily_hours'])
-                        st.metric("Total Forecast", forecast['total_forecast'])
-                        st.caption(f"Model: {forecast['model']}")
-                        if 'note' in forecast:
-                            st.info(forecast['note'])
-                    else:
-                        st.error(forecast['error'])
-    
-    with tab3:
-        st.subheader("Custom Report Builder")
-        
-        st.markdown("Build a custom report with selected metrics and visualizations")
-        
-        data_sources = st.multiselect("Data Sources", 
-            ["Maintenance", "Safety Incidents", "Flights"])
-        
-        metrics = st.multiselect("Metrics to Include",
-            ["Total Records", "Date Range", "Status Breakdown", "Cost Analysis", 
-             "Trend Charts", "Top 10 Items"])
-        
-        if st.button("Build Custom Report"):
-            st.info("🚧 Custom report builder - Feature in development!")
+                st.dataframe(df, use_container_width=True)
+                st.success("Report generated successfully!")
+            else:
+                st.warning("No data available for selected criteria")
 
 # ============================================================================
 # MAIN APPLICATION
@@ -2394,7 +1692,7 @@ def main():
     
     apply_custom_css()
     
-    # REPLACED: Use new Google OAuth check
+    # FIXED: Use new authentication
     if not check_password():
         return
     
@@ -2403,91 +1701,16 @@ def main():
     with st.sidebar:
         st.image("https://upload.wikimedia.org/wikipedia/en/thumb/9/9b/Pakistan_International_Airlines_Logo.svg/1200px-Pakistan_International_Airlines_Logo.svg.png", use_container_width=True)
         
-        # Live Clock - GMT+5 (Pakistan Standard Time)
+        # Live Clock
         pkt_time = get_pakistan_time()
         st.markdown(f"""
             <div style="background:linear-gradient(135deg, {config.PRIMARY_COLOR} 0%, {config.PRIMARY_DARK} 100%);
-                        padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
-                        box-shadow:0 4px 15px rgba(0,108,53,0.2);">
-                <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;opacity:0.9;">
-                    🕐 PAKISTAN TIME (GMT+5)
-                </div>
-                <div style="color:white;font-size:1.8rem;font-weight:800;letter-spacing:1px;">
-                    {pkt_time.strftime('%H:%M:%S')}
-                </div>
-                <div style="color:white;font-size:0.85rem;opacity:0.8;margin-top:0.3rem;">
-                    {pkt_time.strftime('%A, %B %d, %Y')}
-                </div>
+                        padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;">
+                <div style="color:white;font-size:0.85rem;font-weight:600;">🕐 PAKISTAN TIME (GMT+5)</div>
+                <div style="color:white;font-size:1.8rem;font-weight:800;">{pkt_time.strftime('%H:%M:%S')}</div>
+                <div style="color:white;font-size:0.85rem;opacity:0.8;">{pkt_time.strftime('%A, %B %d, %Y')}</div>
             </div>
         """, unsafe_allow_html=True)
-        
-        # Weather Widget - FREE (No API key needed!)
-        weather_data = ExternalDataService.fetch_weather("Karachi")
-        if weather_data:
-            temp = weather_data['main']['temp']
-            description = weather_data['weather'][0]['description'].title()
-            wind_speed = weather_data['wind']['speed']
-            
-            # Weather icon mapping
-            weather_icons = {
-                'clear': '☀️', 'mainly': '🌤️', 'partly': '⛅', 'overcast': '☁️',
-                'clouds': '☁️', 'rain': '🌧️', 'drizzle': '🌦️',
-                'thunderstorm': '⛈️', 'snow': '❄️', 'fog': '🌫️',
-                'haze': '🌫️', 'dust': '💨', 'smoke': '💨'
-            }
-            
-            # Find matching icon
-            icon = '🌤️'
-            desc_lower = description.lower()
-            for key, emoji in weather_icons.items():
-                if key in desc_lower:
-                    icon = emoji
-                    break
-            
-            st.markdown(f"""
-                <div style="background:linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
-                            padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
-                            box-shadow:0 4px 15px rgba(74,144,226,0.2);">
-                    <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.3rem;opacity:0.9;">
-                        🌍 KARACHI WEATHER
-                    </div>
-                    <div style="color:white;font-size:3rem;margin:0.5rem 0;">
-                        {icon}
-                    </div>
-                    <div style="color:white;font-size:2rem;font-weight:800;margin-bottom:0.3rem;">
-                        {temp:.1f}°C
-                    </div>
-                    <div style="color:white;font-size:0.95rem;opacity:0.9;margin-bottom:0.8rem;">
-                        {description}
-                    </div>
-                    <div style="display:flex;justify-content:space-around;color:white;font-size:0.8rem;">
-                        <div style="text-align:center;">
-                            <div style="opacity:0.8;">💨 Wind</div>
-                            <div style="font-weight:600;">{wind_speed:.1f} m/s</div>
-                        </div>
-                        <div style="text-align:center;">
-                            <div style="opacity:0.8;">📡 Source</div>
-                            <div style="font-weight:600;">Open-Meteo</div>
-                        </div>
-                    </div>
-                    <div style="color:white;font-size:0.7rem;opacity:0.7;margin-top:0.5rem;">
-                        ✨ Free Weather API
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown(f"""
-                <div style="background:linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
-                            padding:1.5rem;border-radius:12px;margin-bottom:1rem;text-align:center;
-                            box-shadow:0 4px 15px rgba(149,165,166,0.2);">
-                    <div style="color:white;font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;">
-                        🌍 WEATHER
-                    </div>
-                    <div style="color:white;font-size:0.9rem;opacity:0.8;">
-                        Unable to fetch weather data.<br>Check your internet connection.
-                    </div>
-                </div>
-            """, unsafe_allow_html=True)
         
         st.title("Navigation")
         
@@ -2503,60 +1726,34 @@ def main():
         
         st.divider()
         
-        # Auto-refresh toggle for live updates
-        auto_refresh = st.checkbox("🔄 Auto-refresh (30s)", value=False)
-        if auto_refresh:
-            st.caption("Live updates enabled")
-            time.sleep(30)
-            st.rerun()
-        
         if st.session_state.get('current_user'):
             user = st.session_state.current_user
             st.markdown(f"### 👤 {user['full_name']}")
             st.caption(f"@{user['username']} | {user['role'].title()}")
             
-            # Simple Logout Button
-            if st.button("🚪 Logout", use_container_width=True, type="secondary"):
-                # Clear session state
-                st.session_state.authenticated = False
-                st.session_state.current_user = None
-                st.session_state.chat_history = []
-                
-                # Sign out from Supabase
-                try:
-                    auth_conn = st.connection("supabase", type=SupabaseConnection)
-                    auth_conn.auth.sign_out()
-                except:
-                    pass
-                    
-                st.success("Logged out successfully!")
-                time.sleep(1)
-                st.rerun()
-            
-            st.divider()
-        
-        st.subheader("System Status")
-        st.caption(f"Database: {db.db_type.upper()}")
-        st.caption(f"Mode: {config.APP_MODE.upper()}")
-        
-        # AI Status
-        if config.GEMINI_API_KEY:
-            st.success("✅ Gemini AI Enabled")
-        elif config.GROQ_API_KEY:
-            st.success("✅ Groq AI Enabled")
-        else:
-            st.info("ℹ️ AI Disabled")
+            # Logout button using streamlit-supabase-auth
+            try:
+                from streamlit_supabase_auth import logout_button
+                logout_button(url=config.SUPABASE_URL, apiKey=config.SUPABASE_KEY)
+            except:
+                if st.button("🚪 Logout", use_container_width=True):
+                    st.session_state.authenticated = False
+                    st.session_state.current_user = None
+                    st.rerun()
         
         st.divider()
         
-        st.subheader("Quick Stats")
-        maint_count = len(db.query('maintenance', limit=10))
-        incidents_count = len(db.query('safety_incidents', limit=10))
-        flights_count = len(db.query('flights', limit=10))
+        # System Status
+        st.subheader("System Status")
+        st.caption(f"Database: {db.db_type.upper()}")
         
-        st.metric("Maintenance", maint_count)
-        st.metric("Incidents", incidents_count)
-        st.metric("Flights", flights_count)
+        # AI Status
+        if config.GEMINI_API_KEY:
+            st.success("✅ Gemini AI")
+        if config.GROQ_API_KEY:
+            st.success("✅ Groq AI")
+        if not config.GEMINI_API_KEY and not config.GROQ_API_KEY:
+            st.warning("⚠️ No AI configured")
     
     # Route to pages
     if "Dashboard" in page:
@@ -2575,7 +1772,7 @@ def main():
         page_reports()
     
     st.divider()
-    st.caption("© 2025 Pakistan International Airlines - Operations Management System v2.0 | Powered by Gemini AI")
+    st.caption("© 2025 Pakistan International Airlines - Operations Management System v2.0 | Powered by Gemini & Groq AI")
 
 if __name__ == "__main__":
     main()
